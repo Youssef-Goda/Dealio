@@ -1,0 +1,1 @@
+// TODO: Auth state management using Provider
