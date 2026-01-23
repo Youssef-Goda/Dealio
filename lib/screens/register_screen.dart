@@ -1,12 +1,12 @@
 import 'package:e_commerce/models/colors.dart';
-import 'package:e_commerce/models/keep_email_service.dart';
-import 'package:e_commerce/screens/otp_screen.dart';
+import 'package:e_commerce/providers/auth_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
-import '../api/api_service.dart';
+import 'package:lottie/lottie.dart';
+import 'package:provider/provider.dart';
+import 'package:top_snackbar_flutter/custom_snack_bar.dart';
+import 'package:top_snackbar_flutter/top_snack_bar.dart';
 
 class RegisterScreen extends StatefulWidget {
   final String? initialEmail;
@@ -28,9 +28,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final emailFocusNode = FocusNode();
   final passwordFocusNode = FocusNode();
   final confirmFocusNode = FocusNode();
-
   String? serverEmailError;
-  bool isLoading = false;
   bool passwordVisible = false;
   bool confirmPasswordVisible = false;
   bool _autoValidate = false;
@@ -38,24 +36,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   void initState() {
     super.initState();
-    emailController = TextEditingController(text: widget.initialEmail ?? "");
-    if (emailController.text.isEmpty) {
-      _loadSavedEmail();
-    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final auth = context.read<AuthProvider>();
+      if (auth.tempEmail.isNotEmpty) {
+        emailController.text = auth.tempEmail;
+      }
+    });
   }
 
-  _loadSavedEmail() async {
-    String? saved = await getLastEmail();
-    if (saved != null) {
-      setState(() {
-        emailController.text = saved;
-      });
-    }
+  bool _isEmailValid(String email) {
+    return RegExp(
+      r"^[a-zA-Z0-9.]+@[a-zA-Z0-9]+\.[a-zA-Z]{2,4}$",
+    ).hasMatch(email);
   }
-
-  bool _isEmailValid(String email) =>
-      RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(email);
-
+  
   String formatName(String name) => name.isEmpty
       ? ""
       : name[0].toUpperCase() + name.substring(1).toLowerCase();
@@ -68,48 +62,37 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   Future<void> _register() async {
     FocusScope.of(context).unfocus();
+    HapticFeedback.mediumImpact();
     setState(() => _autoValidate = true);
-
     if (!_formKey.currentState!.validate()) return;
-
-    setState(() => isLoading = true);
-
-    try {
-      final response = await ApiService.register(
-        firstName: formatName(firstNameController.text.trim()),
-        lastName: formatName(lastNameController.text.trim()),
-        email: emailController.text.trim(),
-        password: passwordController.text.trim(),
-      );
-
-      final responseData = jsonDecode(response.body);
-
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        TextInput.finishAutofillContext();
-
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('temp_email', emailController.text.trim());
-
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => OtpScreen(
-              email: emailController.text.trim(),
-              userId: responseData['userId']?.toString(),
-            ),
-          ),
-        );
-      } else {
-        String msg = (responseData['message'] ?? "").toLowerCase();
-        if (msg.contains("email")) {
-          setState(() => serverEmailError = responseData['message']);
-          _formKey.currentState!.validate();
-        }
+    final authProvider = context.read<AuthProvider>();
+    final result = await authProvider.register(
+      firstName: formatName(firstNameController.text.trim()),
+      lastName: formatName(lastNameController.text.trim()),
+      email: emailController.text.trim(),
+      password: passwordController.text.trim(),
+    );
+    if (result['success']) {
+      if (!mounted) return;
+      Navigator.pushReplacementNamed(context, "/otp");
+    } else {
+      String msg = (result['message'] ?? "").toLowerCase();
+      if (msg.contains("email")) {
+        setState(() => serverEmailError = result['message']);
+        _formKey.currentState!.validate();
       }
-    } catch (e) {
-      debugPrint("Registration Error: $e");
-    } finally {
-      if (mounted) setState(() => isLoading = false);
+      if (!mounted) return;
+      showTopSnackBar(
+        Overlay.of(context),
+        CustomSnackBar.error(
+          message: result['message'] ?? "Registration Failed",
+          backgroundColor: AppColors.primary,
+          textStyle: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: AppColors.secondary,
+          ),
+        ),
+      );
     }
   }
 
@@ -129,15 +112,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final auth = Provider.of<AuthProvider>(context);
     return GestureDetector(
       onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
       child: AnimatedOpacity(
         duration: Duration(milliseconds: 300),
-        opacity: isLoading ? 0.8 : 1.0,
+        opacity: auth.isLoading ? 0.8 : 1.0,
         child: Scaffold(
           backgroundColor: AppColors.background,
           body: AbsorbPointer(
-            absorbing: isLoading,
+            absorbing: auth.isLoading,
             child: SafeArea(
               child: Center(
                 child: SingleChildScrollView(
@@ -155,12 +139,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               AppColors.secondary,
                               BlendMode.srcIn,
                             ),
-                            fit: BoxFit.contain,
+                            // fit: BoxFit.con tain,
                           ),
                           Text(
                             "ealio",
                             style: TextStyle(
-                              fontSize: 50,
+                              fontSize: 48,
                               fontWeight: FontWeight.w700,
                               color: AppColors.secondary,
                               letterSpacing: -1.0,
@@ -173,15 +157,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       ConstrainedBox(
                         constraints: BoxConstraints(maxWidth: 400),
                         child: Container(
-                          padding: EdgeInsets.all(17),
+                          padding: const EdgeInsets.all(17),
                           decoration: BoxDecoration(
                             color: Colors.white,
                             borderRadius: BorderRadius.circular(20),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withOpacity(0.1),
-                                blurRadius: 20,
-                                offset: Offset(0, 10),
+                                color: Colors.black.withOpacity(0.07),
+                                blurRadius: 30,
+                                offset: const Offset(0, 12),
+                                spreadRadius: -5,
                               ),
                             ],
                           ),
@@ -196,19 +181,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                   Text(
                                     "Create Account",
                                     style: TextStyle(
-                                      fontSize: 26,
+                                      fontSize: 24,
                                       fontWeight: FontWeight.bold,
                                       color: AppColors.secondary.withOpacity(
                                         0.85,
                                       ),
-                                      letterSpacing: -0.5,
+                                      // letterSpacing: -0.5,
                                     ),
                                   ),
                                   SizedBox(height: 12),
                                   Text(
                                     "Join us to start your journey",
                                     style: TextStyle(
-                                      fontSize: 14,
+                                      fontSize: 13,
                                       color: Colors.grey[500],
                                     ),
                                   ),
@@ -300,7 +285,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                     focusNode: confirmFocusNode,
                                     validator: (v) {
                                       if (v == null || v.isEmpty) {
-                                        return '';
+                                        return 'Please confirm your password';
                                       }
                                       if (v != passwordController.text) {
                                         return 'Passwords do not match';
@@ -313,26 +298,35 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                           !confirmPasswordVisible,
                                     ),
                                   ),
-                                  SizedBox(height: 25),
+                                  const SizedBox(height: 25),
                                   SizedBox(
                                     width: double.infinity,
                                     child: Container(
                                       width: double.infinity,
                                       decoration: BoxDecoration(
                                         borderRadius: BorderRadius.circular(12),
+
                                         boxShadow: [
                                           BoxShadow(
-                                            color: AppColors.primary
-                                                .withOpacity(0.2),
+                                            color: auth.isLoading
+                                                ? Colors.transparent
+                                                : AppColors.primary.withOpacity(
+                                                    0.2,
+                                                  ),
                                             blurRadius: 10,
-                                            offset: Offset(0, 6),
+                                            offset: Offset(2, 6),
                                           ),
                                         ],
                                       ),
                                       child: ElevatedButton(
-                                        onPressed: isLoading ? null : _register,
+                                        onPressed: auth.isLoading
+                                            ? null
+                                            : _register,
                                         style: ElevatedButton.styleFrom(
                                           backgroundColor: AppColors.primary,
+                                          disabledBackgroundColor: AppColors
+                                              .primary
+                                              .withOpacity(0.2),
                                           foregroundColor: AppColors.secondary,
                                           elevation: 0,
                                           shape: RoundedRectangleBorder(
@@ -344,19 +338,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                             vertical: 10,
                                           ),
                                         ),
-                                        child: isLoading
+                                        child: auth.isLoading
                                             ? SizedBox(
                                                 height: 24,
                                                 width: 24,
-                                                child:
-                                                    CircularProgressIndicator(
-                                                      color:
-                                                          AppColors.secondary,
-                                                      strokeWidth: 2.5,
-                                                    ),
+                                                child: Lottie.asset(
+                                                  'assets/animations/dealio_loading_js.json',
+                                                  fit: BoxFit.contain,
+                                                ),
                                               )
                                             : const Text(
-                                                'SIGN UP',
+                                                'Sign up',
                                                 style: TextStyle(
                                                   fontSize: 17,
                                                   fontWeight: FontWeight.bold,
@@ -419,7 +411,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             ),
                           ),
                           TextButton(
-                            onPressed: () => Navigator.pop(context),
+                            onPressed: () =>
+                                Navigator.pop(context, emailController.text),
                             child: const Text(
                               "Login",
                               style: TextStyle(
@@ -484,15 +477,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
       onFieldSubmitted: (_) =>
           FocusScope.of(context).requestFocus(passwordFocusNode),
       inputFormatters: [FilteringTextInputFormatter.deny(RegExp(r'\s'))],
-      onChanged: (v) => _onFieldChanged(),
+      onChanged: (v) {
+        _onFieldChanged();
+        context.read<AuthProvider>().tempEmail =
+            v;
+      },
       decoration: _inputDecoration(
         'Email Address',
-        hintText: 'example@mail.com',
+        hintText: 'you@example.com',
       ),
       validator: (value) {
         if (value == null || value.isEmpty) return 'Enter your Email Adress';
         if (!_isEmailValid(value)) return 'Invalid Email';
-        if (serverEmailError != null) return serverEmailError;
+        if (serverEmailError != null) return '';
         return null;
       },
     );

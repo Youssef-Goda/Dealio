@@ -1,11 +1,10 @@
 import 'dart:async';
-import 'dart:convert';
-import 'package:e_commerce/api/api_service.dart';
 import 'package:e_commerce/models/colors.dart';
-import 'package:e_commerce/screens/new_password_screen.dart'; // تأكد من اسم الملف عندك
+import 'package:e_commerce/providers/auth_provider.dart';
+import 'package:e_commerce/screens/new_password_screen.dart';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:pinput/pinput.dart';
+import 'package:provider/provider.dart';
 
 class ResetPasswordOtpScreen extends StatefulWidget {
   final String email;
@@ -20,52 +19,27 @@ class _ResetPasswordOtpScreenState extends State<ResetPasswordOtpScreen> {
   final pinController = TextEditingController();
   final focusNode = FocusNode();
 
-  int remainingSeconds = 59;
-  Timer? timer;
-  bool isLoading = false;
-
   @override
   void initState() {
     super.initState();
-    startTimer();
-  }
-
-  void startTimer() {
-    timer?.cancel();
-    setState(() => remainingSeconds = 59);
-    timer = Timer.periodic(const Duration(seconds: 1), (t) {
-      if (!mounted) return;
-      if (remainingSeconds > 0) {
-        setState(() => remainingSeconds--);
-      } else {
-        t.cancel();
-      }
-    });
+    Future.microtask(() => context.read<AuthProvider>().startOtpTimer());
   }
 
   Future<void> resendOtp() async {
-    try {
-      final res = await http.post(
-        Uri.parse('${ApiService.baseUrl}/auth/forgot-password'),
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode({"email": widget.email}),
-      );
-      if (!mounted) return;
-      if (res.statusCode == 200) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("✅ A new code has been sent to your email"),
-          ),
-        );
-      }
-    } catch (e) {
-      debugPrint("Error resending OTP: $e");
+    final result = await context.read<AuthProvider>().sendResetCode(
+      widget.email,
+    );
+    if (!mounted) return;
+    if (result['success']) {
+    } else {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("❌ ${result['message']}")));
     }
   }
 
   void goToNewPassword(String pin) {
     if (pin.length < 6) return;
-
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -79,12 +53,16 @@ class _ResetPasswordOtpScreenState extends State<ResetPasswordOtpScreen> {
   void dispose() {
     pinController.dispose();
     focusNode.dispose();
-    timer?.cancel();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final authLoading = context.watch<AuthProvider>().isLoading;
+    final seconds = context.select(
+      (AuthProvider auth) => auth.remainingSeconds,
+    );
+
     final defaultPinTheme = PinTheme(
       width: 50,
       height: 55,
@@ -102,7 +80,6 @@ class _ResetPasswordOtpScreenState extends State<ResetPasswordOtpScreen> {
 
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: AppBar(backgroundColor: Colors.white, elevation: 0),
       body: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 25),
@@ -110,6 +87,7 @@ class _ResetPasswordOtpScreenState extends State<ResetPasswordOtpScreen> {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               const SizedBox(height: 20),
+              // Icon Section
               Container(
                 padding: const EdgeInsets.all(15),
                 decoration: BoxDecoration(
@@ -122,8 +100,8 @@ class _ResetPasswordOtpScreenState extends State<ResetPasswordOtpScreen> {
                   color: AppColors.primary,
                 ),
               ),
-              SizedBox(height: 30),
-              Text(
+              const SizedBox(height: 30),
+              const Text(
                 "OTP Verification",
                 style: TextStyle(
                   fontSize: 26,
@@ -131,21 +109,28 @@ class _ResetPasswordOtpScreenState extends State<ResetPasswordOtpScreen> {
                   color: AppColors.secondary,
                 ),
               ),
-              SizedBox(height: 10),
+              const SizedBox(height: 10),
               Text(
                 "Enter the 6-digit code sent to",
                 style: TextStyle(fontSize: 15, color: Colors.grey[600]),
               ),
-              Text(
-                widget.email,
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.secondary,
+              TextButton.icon(
+                onPressed: () => Navigator.pop(context),
+                icon: const Icon(
+                  Icons.mode_edit_rounded,
+                  color: AppColors.primary,
+                ),
+                label: Text(
+                  widget.email,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.secondary,
+                  ),
                 ),
               ),
-              SizedBox(height: 40),
-
+              const SizedBox(height: 40),
+              // Pin Input Section
               Pinput(
                 length: 6,
                 controller: pinController,
@@ -159,54 +144,55 @@ class _ResetPasswordOtpScreenState extends State<ResetPasswordOtpScreen> {
                   ),
                 ),
               ),
-
               const SizedBox(height: 30),
-              remainingSeconds > 0
+              // Timer Section
+              seconds > 0
                   ? Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         const Text("Resend code in "),
                         Text(
-                          "0:${remainingSeconds.toString().padLeft(2, '0')}",
+                          "0:${seconds.toString().padLeft(2, '0')}",
                           style: const TextStyle(
                             color: AppColors.primary,
-                            fontWeight: FontWeight.bold,
+                            fontWeight: FontWeight.w400,
                           ),
                         ),
                       ],
                     )
                   : TextButton(
-                      onPressed: () {
-                        resendOtp();
-                        startTimer();
-                      },
-                      child: const Text(
-                        "Resend New Code",
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                      ),
+                      onPressed: authLoading ? null : () => resendOtp(),
+                      child: const Text("Resend new code"),
                     ),
               const SizedBox(height: 50),
-              SizedBox(
-                width: double.infinity,
-                height: 55,
-                child: ElevatedButton(
-                  onPressed: () => goToNewPassword(pinController.text),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(15),
+              // Continue Button
+              ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: 400),
+                child: SizedBox(
+                  width: double.infinity,
+                  height: 55,
+                  child: ElevatedButton(
+                    onPressed: authLoading
+                        ? null
+                        : () => goToNewPassword(pinController.text),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
                     ),
-                  ),
-                  child: const Text(
-                    "Continue",
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.secondary,
-                    ),
+                    child: authLoading
+                        ? const CircularProgressIndicator(
+                            color: AppColors.secondary,
+                          )
+                        : const Text(
+                            "Continue",
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.secondary,
+                            ),
+                          ),
                   ),
                 ),
               ),

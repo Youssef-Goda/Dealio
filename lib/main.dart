@@ -1,74 +1,79 @@
-import 'dart:convert';
 import 'package:e_commerce/models/colors.dart';
+import 'package:e_commerce/providers/auth_provider.dart';
+import 'package:e_commerce/screens/forgot_password.dart';
 import 'package:e_commerce/screens/home_screen.dart';
 import 'package:e_commerce/screens/login_screen.dart';
+import 'package:e_commerce/screens/otp_screen.dart';
+import 'package:e_commerce/screens/register_screen.dart' show RegisterScreen;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:device_preview/device_preview.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter_native_splash/flutter_native_splash.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:provider/provider.dart';
 
 void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  final prefs = await SharedPreferences.getInstance();
-  final bool isLoggedIn = prefs.getBool('isLoggedIn') ?? false;
-
-  String id = '';
-  String firstName = '';
-  String lastName = '';
-  String email = '';
-
-  if (isLoggedIn) {
-    String? userDataString = prefs.getString('userData');
-    if (userDataString != null) {
-      Map<String, dynamic> user = jsonDecode(userDataString);
-      id = (user['_id'] ?? user['id'] ?? '').toString();
-      firstName = user['firstName'] ?? '';
-      lastName = user['lastName'] ?? '';
-      email = user['email'] ?? '';
-    }
+  await dotenv.load(fileName: ".env");
+  GoogleFonts.config.allowRuntimeFetching = true;
+  WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
+  if (!kIsWeb) {
+    FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
   }
-
+  final authProvider = AuthProvider();
+  try {
+    await authProvider.loadUserData();
+  } catch (e) {
+    debugPrint("Error loading user data: $e");
+  }
+  if (!kIsWeb) {
+    FlutterNativeSplash.remove();
+  }
   runApp(
-    DevicePreview(
-      enabled: !kReleaseMode,
-      builder: (context) => MyApp(
-        startScreen: isLoggedIn
-            ? HomeScreen(
-                id: id,
-                firstName: firstName,
-                lastName: lastName,
-                email: email,
-              )
-            : LoginScreen(),
-      ),
+    // DevicePreview(
+    //   enabled:
+    //       !kReleaseMode && (kIsWeb || (!Platform.isAndroid && !Platform.isIOS)),
+    /*builder: (context) => */ MultiProvider(
+      providers: [ChangeNotifierProvider.value(value: authProvider)],
+      child: const MyApp(),
     ),
+    // ),
   );
 }
 
 class MyApp extends StatelessWidget {
-  final Widget startScreen;
-  const MyApp({super.key, required this.startScreen});
-
+  const MyApp({super.key});
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      useInheritedMediaQuery: true,
-      debugShowCheckedModeBanner: false,
-      title: 'Dealio',
-      theme: ThemeData(
-        colorScheme: ColorScheme.light(primary: AppColors.secondary),
-        textTheme: GoogleFonts.interTextTheme(Theme.of(context).textTheme),
+    return ScreenUtilInit(
+      designSize: const Size(360, 800),
+      minTextAdapt: true,
+      splitScreenMode: true,
+      child: MaterialApp(
+        useInheritedMediaQuery: true,
+        debugShowCheckedModeBanner: false,
+        title: 'Dealio',
+        theme: ThemeData(
+          useMaterial3: true,
+          textTheme: GoogleFonts.lexendTextTheme(),
+          colorScheme: ColorScheme.light(primary: AppColors.secondary),
+        ),
 
-        // الانتقالات الناعمة
-        // pageTransitionsTheme: const PageTransitionsTheme(
-        //   builders: {
-        //     TargetPlatform.android: FadeUpwardsPageTransitionsBuilder(),
-        //     TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
-        //   },
-        // ),
+        home: Selector<AuthProvider, bool>(
+          selector: (context, auth) => auth.isLoggedIn,
+          builder: (context, isLoggedIn, child) {
+            return isLoggedIn ? const HomeScreen() : const LoginScreen();
+          },
+        ),
+
+        routes: {
+          '/login': (context) => const LoginScreen(),
+          '/register': (context) => const RegisterScreen(),
+          '/home': (context) => const HomeScreen(),
+          '/otp': (context) => const OtpScreen(),
+          '/forgotPassword': (context) => const ForgotPassword(),
+        },
       ),
-      home: startScreen,
     );
   }
 }

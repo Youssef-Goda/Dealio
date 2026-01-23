@@ -1,11 +1,8 @@
-import 'dart:convert';
-import 'package:e_commerce/api/api_service.dart';
 import 'package:e_commerce/models/colors.dart';
-import 'package:e_commerce/screens/home_screen.dart';
+import 'package:e_commerce/providers/auth_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:provider/provider.dart';
 
 class NewPasswordScreen extends StatefulWidget {
   final String email;
@@ -22,14 +19,10 @@ class _NewPasswordScreenState extends State<NewPasswordScreen> {
   final confirmPasswordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
 
-  bool isLoading = false;
   bool isPasswordVisible = false;
   bool isConfirmVisible = false;
   bool _autoValidate = false;
-
-  String? serverError;
   String? passwordServerError;
-  String? otpServerError;
 
   @override
   void dispose() {
@@ -38,82 +31,46 @@ class _NewPasswordScreenState extends State<NewPasswordScreen> {
     super.dispose();
   }
 
-  Future<void> resetPassword() async {
+  Future<void> handleResetPassword() async {
     FocusScope.of(context).unfocus();
+    setState(() => passwordServerError = null);
     if (!_formKey.currentState!.validate()) {
       setState(() => _autoValidate = true);
       return;
     }
-
-    setState(() => isLoading = true);
-
-    try {
-      final res = await http.post(
-        Uri.parse('${ApiService.baseUrl}/auth/reset-password'),
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode({
-          "email": widget.email,
-          "otp": widget.otp,
-          "newPassword": passwordController.text.trim(),
-        }),
+    final authProvider = context.read<AuthProvider>();
+    final result = await authProvider.resetPassword(
+      email: widget.email,
+      otp: widget.otp,
+      newPassword: passwordController.text.trim(),
+    );
+    if (!mounted) return;
+    if (result['success']) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("✅ Password updated successfully!")),
       );
-      if (!mounted) return;
-
-      if (res.statusCode == 200) {
-        final data = jsonDecode(res.body);
-        final user = data['user'];
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setBool('isLoggedIn', true);
-        await prefs.setString('userData', jsonEncode(user));
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("✅ Password reset & Logged in!")),
-        );
-
-        if (!mounted) return;
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(
-            builder: (context) => HomeScreen(
-              id: (user['id'] ?? user['_id']).toString(),
-              firstName: user['firstName'] ?? '',
-              lastName: user['lastName'] ?? '',
-              email: user['email'] ?? '',
-            ),
-          ),
-          (route) => false,
-        );
-      } else if (res.statusCode == 400) {
-        final errorData = jsonDecode(res.body);
-        String message = errorData['message'] ?? "Error occurred";
-
-        if (message.toLowerCase().contains('same as old')) {
-          setState(() {
-            passwordServerError =
-                "New password cannot be the same old password";
-          });
-          _formKey.currentState!.validate();
-        } else {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text("❌ $message")));
-        }
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("❌ Something went wrong, try again later")),
-        );
+      if (mounted) {
+        Navigator.pushNamedAndRemoveUntil(context, '/home', (route) => false);
       }
-    } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("❌ Connection error!")));
-    } finally {
-      if (mounted) setState(() => isLoading = false);
+    } else {
+      String message = result['message'];
+      if (message.toLowerCase().contains('same as old')) {
+        setState(
+          () => passwordServerError =
+              "New password cannot be the same old password",
+        );
+        _formKey.currentState!.validate();
+      } else {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("❌ $message")));
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final authLoading = context.watch<AuthProvider>().isLoading;
     final size = MediaQuery.of(context).size;
 
     return GestureDetector(
@@ -127,39 +84,8 @@ class _NewPasswordScreenState extends State<NewPasswordScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: AppColors.secondary.withOpacity(0.1),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      Icons.lock_open_rounded,
-                      size: size.height * 0.08,
-                      color: AppColors.secondary,
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  const Text(
-                    "Create New Password",
-                    style: TextStyle(
-                      fontSize: 26,
-                      fontWeight: FontWeight.w900,
-                      color: AppColors.secondary,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    "Your identity is verified! Choose a strong password.",
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: AppColors.secondary.withOpacity(0.7),
-                    ),
-                  ),
+                  _buildHeader(size),
                   const SizedBox(height: 40),
-
-                  // Main Card
                   Container(
                     padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(
@@ -202,15 +128,14 @@ class _NewPasswordScreenState extends State<NewPasswordScreen> {
                           ),
                           const SizedBox(height: 35),
 
-                          // Submit Button
-                          isLoading
+                          authLoading
                               ? const CircularProgressIndicator(
-                                  color: AppColors.primary,
+                                  color: AppColors.secondary,
                                 )
                               : SizedBox(
                                   width: double.infinity,
                                   child: ElevatedButton(
-                                    onPressed: resetPassword,
+                                    onPressed: handleResetPassword,
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: AppColors.secondary,
                                       foregroundColor: Colors.white,
@@ -238,13 +163,15 @@ class _NewPasswordScreenState extends State<NewPasswordScreen> {
                   ),
                   const SizedBox(height: 20),
                   TextButton.icon(
-                    onPressed: () => Navigator.pop(context),
+                    onPressed: authLoading
+                        ? null
+                        : () => Navigator.pop(context),
                     icon: const Icon(
                       Icons.arrow_back,
                       size: 18,
                       color: AppColors.secondary,
                     ),
-                    label: Text(
+                    label: const Text(
                       "Back to OTP",
                       style: TextStyle(
                         color: AppColors.secondary,
@@ -258,6 +185,43 @@ class _NewPasswordScreenState extends State<NewPasswordScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildHeader(Size size) {
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: AppColors.secondary.withOpacity(0.1),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(
+            Icons.lock_open_rounded,
+            size: size.height * 0.08,
+            color: AppColors.secondary,
+          ),
+        ),
+        const SizedBox(height: 20),
+        const Text(
+          "Create New Password",
+          style: TextStyle(
+            fontSize: 26,
+            fontWeight: FontWeight.w900,
+            color: AppColors.secondary,
+          ),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          "Your identity is verified! Choose a strong password.",
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 14,
+            color: AppColors.secondary.withOpacity(0.7),
+          ),
+        ),
+      ],
     );
   }
 
@@ -320,9 +284,8 @@ class _NewPasswordScreenState extends State<NewPasswordScreen> {
             if (value == null || value.isEmpty) return 'Please enter password';
             if (value.length < 8) return 'Must be at least 8 characters';
             if (isConfirm) {
-              if (value != passwordController.text) {
+              if (value != passwordController.text)
                 return 'Passwords don\'t match';
-              }
             } else {
               if (passwordServerError != null) return passwordServerError;
             }

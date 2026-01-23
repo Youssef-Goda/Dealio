@@ -7,3 +7,5 @@ class AppColors {
   static const Color borderColor = Color(0xFFE0E0E0);
   static const Color fillColor = Color(0xFFFAFAFA);
 }
+
+

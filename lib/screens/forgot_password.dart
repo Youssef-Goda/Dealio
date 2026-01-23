@@ -1,11 +1,12 @@
-import 'dart:convert';
-import 'package:e_commerce/api/api_service.dart';
 import 'package:e_commerce/models/colors.dart';
+import 'package:e_commerce/providers/auth_provider.dart';
 import 'package:e_commerce/screens/reset_password_otp_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_svg/svg.dart';
-import 'package:http/http.dart' as http;
+import 'package:lottie/lottie.dart';
+import 'package:provider/provider.dart';
+import 'package:top_snackbar_flutter/custom_snack_bar.dart';
+import 'package:top_snackbar_flutter/top_snack_bar.dart';
 
 class ForgotPassword extends StatefulWidget {
   const ForgotPassword({super.key});
@@ -17,13 +18,11 @@ class ForgotPassword extends StatefulWidget {
 class _ForgotPasswordState extends State<ForgotPassword> {
   final emailController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
-
+  final passwordFocusNode = FocusNode();
   bool isLoading = false;
   bool hasError = false;
   bool _autoValidate = false;
-
-
-
+  bool hasLoginError = false;
 
   @override
   void dispose() {
@@ -31,8 +30,11 @@ class _ForgotPasswordState extends State<ForgotPassword> {
     super.dispose();
   }
 
-  bool _isEmailValid(String email) =>
-      RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(email);
+  bool _isEmailValid(String email) {
+    return RegExp(
+      r"^[a-zA-Z0-9.]+@[a-zA-Z0-9]+\.[a-zA-Z]{2,4}$",
+    ).hasMatch(email);
+  }
 
   void _clearServerError() {
     if (hasError) {
@@ -43,7 +45,7 @@ class _ForgotPasswordState extends State<ForgotPassword> {
 
   Future<void> sendResetCode() async {
     FocusScope.of(context).unfocus();
-
+    HapticFeedback.mediumImpact();
     if (!_formKey.currentState!.validate()) {
       setState(() => _autoValidate = true);
       return;
@@ -55,15 +57,12 @@ class _ForgotPasswordState extends State<ForgotPassword> {
     });
 
     try {
-      final response = await http.post(
-        Uri.parse('${ApiService.baseUrl}/auth/forgot-password'),
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode({"email": emailController.text.trim()}),
-      );
+      final auth = context.read<AuthProvider>();
+      final result = await auth.sendResetCode(emailController.text.trim());
 
       if (!mounted) return;
 
-      if (response.statusCode == 200) {
+      if (result['success']) {
         Navigator.push(
           context,
           MaterialPageRoute(
@@ -76,30 +75,45 @@ class _ForgotPasswordState extends State<ForgotPassword> {
           hasError = true;
           _autoValidate = true;
         });
-        _formKey.currentState!.validate();
-        
-        final errorMessage = jsonDecode(response.body)['message'] ?? "Error occurred";
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("❌ $errorMessage")),
+
+        showTopSnackBar(
+          Overlay.of(context),
+          CustomSnackBar.error(
+            message: result['message'],
+            backgroundColor: AppColors.primary,
+            textStyle: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: AppColors.secondary,
+            ),
+          ),
         );
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("❌ Connection error, check your server")),
-      );
+      // unexpected error
     } finally {
       if (mounted) setState(() => isLoading = false);
     }
   }
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final auth = context.read<AuthProvider>();
+      if (auth.tempEmail.isNotEmpty) {
+        emailController.text = auth.tempEmail;
+      }
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.of(context).size;
+    // final size = MediaQuery.of(context).size;
 
     return GestureDetector(
       onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
       child: Scaffold(
-        backgroundColor: AppColors.primary,
+        backgroundColor: AppColors.background,
         body: SafeArea(
           child: Center(
             child: SingleChildScrollView(
@@ -107,122 +121,142 @@ class _ForgotPasswordState extends State<ForgotPassword> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // Logo Section
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      SvgPicture.asset(
-                        'assets/images/dealio_logo.svg',
-                        height: size.height * 0.07,
-                        colorFilter: const ColorFilter.mode(
-                          AppColors.secondary,
-                          BlendMode.srcIn,
-                        ),
-                        fit: BoxFit.contain,
-                      ),
-                      const SizedBox(width: 10),
-                      const Text(
-                        "ealio",
-                        style: TextStyle(
-                          fontSize: 65,
-                          letterSpacing: 4,
-                          fontWeight: FontWeight.w900,
-                          color: AppColors.secondary,
-                        ),
-                      ),
-                    ],
+                  // Icon Section
+                  Container(
+                    padding: const EdgeInsets.all(15),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.key_sharp,
+                      size: 85,
+                      color: AppColors.primary,
+                    ),
                   ),
-                  const SizedBox(height: 40),
+                  const SizedBox(height: 85),
 
                   // Reset Card
-                  Container(
-                    padding: const EdgeInsets.all(24),
-                    decoration: BoxDecoration(
-                      color: AppColors.fillColor,
-                      borderRadius: BorderRadius.circular(25),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.1),
-                          blurRadius: 20,
-                          offset: const Offset(5, 15),
-                        ),
-                      ],
+                  ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxWidth:
+                          400, // عشان ما يبقاش واسع أوي على الشاشات الكبيرة(الويب)
                     ),
-                    child: Form(
-                      key: _formKey,
-                      autovalidateMode: _autoValidate
-                          ? AutovalidateMode.onUserInteraction
-                          : AutovalidateMode.disabled,
-                      child: Column(
-                        children: [
-                          const Text(
-                            "Reset Password",
-                            style: TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.secondary,
-                            ),
+                    child: Container(
+                      padding: const EdgeInsets.only(
+                        top: 24,
+                        left: 24,
+                        right: 24,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.1),
+                            blurRadius: 20,
+                            offset: const Offset(0, 10),
                           ),
-                          const SizedBox(height: 10),
-                          Text(
-                            "Enter your email to receive a reset code",
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: AppColors.secondary.withOpacity(0.6),
-                            ),
-                          ),
-                          const SizedBox(height: 30),
-                          
-                          _buildEmailField(),
-                          
-                          const SizedBox(height: 30),
-
-                          // Reset Button
-                          isLoading
-                              ? const CircularProgressIndicator(
-                                  color: AppColors.primary,
-                                )
-                              : SizedBox(
-                                  width: double.infinity,
-                                  child: ElevatedButton(
-                                    onPressed: sendResetCode,
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: AppColors.primary,
-                                      foregroundColor: AppColors.secondary,
-                                      elevation: 0,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(15),
-                                      ),
-                                      padding: const EdgeInsets.symmetric(
-                                        vertical: 16,
-                                      ),
-                                    ),
-                                    child: const Text(
-                                      'SEND CODE',
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ),
-                                ),
                         ],
                       ),
-                    ),
-                  ),
-                  
-                  // Back to Login Button
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text(
-                      "Back to Login",
-                      style: TextStyle(
-                        color: AppColors.secondary,
-                        fontWeight: FontWeight.bold,
+                      child: Form(
+                        key: _formKey,
+                        autovalidateMode: _autoValidate
+                            ? AutovalidateMode.onUserInteraction
+                            : AutovalidateMode.disabled,
+                        child: Column(
+                          children: [
+                            const Text(
+                              "Reset Password",
+                              style: TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.secondary,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            Text(
+                              "Enter your email to receive a reset code",
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: AppColors.secondary.withOpacity(0.6),
+                              ),
+                            ),
+                            const SizedBox(height: 30),
+
+                            _buildEmailField(),
+
+                            const SizedBox(height: 30),
+
+                            // send code button
+                            SizedBox(
+                              width: double.infinity,
+                              child: Container(
+                                width: double.infinity,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(12),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: isLoading
+                                          ? Colors.transparent
+                                          : AppColors.primary.withOpacity(0.2),
+                                      blurRadius: 10,
+                                      offset: const Offset(2, 6),
+                                    ),
+                                  ],
+                                ),
+                                child: ElevatedButton(
+                                  onPressed: isLoading ? null : sendResetCode,
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppColors.primary,
+                                    disabledBackgroundColor: AppColors.primary
+                                        .withOpacity(0.2),
+                                    foregroundColor: AppColors.secondary,
+                                    elevation: 0,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    padding: EdgeInsets.symmetric(vertical: 10),
+                                  ),
+                                  child: isLoading
+                                      ? SizedBox(
+                                          height: 24,
+                                          width: 24,
+                                          child: Lottie.asset(
+                                            'assets/animations/dealio_loading_js.json',
+                                            fit: BoxFit.contain,
+                                          ),
+                                        )
+                                      : const Text(
+                                          'Send code',
+                                          style: TextStyle(
+                                            fontSize: 17,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                ),
+                              ),
+                            ),
+                            SizedBox(height: 15),
+                            // Back to Login Button
+                            TextButton(
+                              onPressed: () =>
+                                  Navigator.pop(context, emailController.text),
+                              child: const Text(
+                                "Back",
+                                style: TextStyle(
+                                  color: AppColors.secondary,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
+                  SizedBox(height: 85),
                 ],
               ),
             ),
@@ -235,50 +269,73 @@ class _ForgotPasswordState extends State<ForgotPassword> {
   Widget _buildEmailField() {
     return TextFormField(
       controller: emailController,
-      autofillHints: const [AutofillHints.email],
+      autofillHints: [AutofillHints.email],
       inputFormatters: [FilteringTextInputFormatter.deny(RegExp(r'\s'))],
       textInputAction: TextInputAction.done,
       keyboardType: TextInputType.emailAddress,
-      onChanged: (v) => _clearServerError(),
-      onFieldSubmitted: (_) => sendResetCode(),
-      decoration: _inputDecoration('Email Address', hint: 'example@mail.com'),
+      onChanged: (v) {
+        _clearServerError();
+        context.read<AuthProvider>().tempEmail = v;
+      },
+      onFieldSubmitted: (_) {
+        if (!isLoading) {
+          sendResetCode();
+        }
+      },
+      // onFieldSubmitted: (_) =>
+      //     FocusScope.of(context).requestFocus(passwordFocusNode),
+      decoration: _inputDecoration(
+        'Email Address',
+        hintText: 'you@example.com',
+      ),
+      style: TextStyle(
+        fontSize: 16,
+        // fontWeight: FontWeight.w500,
+        color: AppColors.secondary,
+      ),
       validator: (value) {
         if (value == null || value.isEmpty) return 'Please enter your email';
-        if (!_isEmailValid(value)) return 'Enter a valid email address';
-        if (hasError) return 'Email doesn\'t exists';
+        if (!_isEmailValid(value)) return 'Enter a valid email';
+        if (hasLoginError) return '';
         return null;
       },
     );
   }
 
-  InputDecoration _inputDecoration(String label, {String? hint}) {
+  InputDecoration _inputDecoration(String label, {String? hintText}) {
     return InputDecoration(
       labelText: label,
-      hintText: hint,
-        hintStyle: TextStyle(
+      isDense: true,
+      alignLabelWithHint: true,
+      labelStyle: TextStyle(
+        color: AppColors.secondary.withOpacity(0.7),
+        fontSize: 14,
+        fontWeight: FontWeight.w600,
+      ),
+      hintText: hintText,
+      hintStyle: TextStyle(
         color: AppColors.secondary.withOpacity(0.5),
         fontSize: 15,
-        fontWeight: FontWeight.w500,
+        fontWeight: FontWeight.w400,
       ),
-      labelStyle: const TextStyle(color: AppColors.secondary, fontSize: 14),
       filled: true,
-      fillColor: Colors.white,
-      contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(15),
-        borderSide: BorderSide(color: Colors.grey.shade200),
+      fillColor: AppColors.fillColor,
+      contentPadding: EdgeInsets.fromLTRB(12, 14, 12, 14),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide.none,
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(15),
-        borderSide: const BorderSide(color: AppColors.secondary, width: 1),
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide(color: AppColors.primary, width: 1.25),
       ),
       errorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(15),
-        borderSide: const BorderSide(color: Colors.red, width: 1),
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide(color: Colors.red, width: 1),
       ),
       focusedErrorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(15),
-        borderSide: const BorderSide(color: Colors.red, width: 1.5),
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide(color: Colors.red, width: 1.5),
       ),
     );
   }

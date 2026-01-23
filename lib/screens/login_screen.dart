@@ -1,14 +1,14 @@
 import 'package:e_commerce/models/colors.dart';
-import 'package:e_commerce/models/keep_email_service.dart';
-import 'package:e_commerce/screens/home_screen.dart';
-import 'package:e_commerce/screens/register_screen.dart';
-import 'package:e_commerce/screens/forgot_password.dart';
+import 'package:e_commerce/providers/auth_provider.dart';
+import 'package:e_commerce/utils/responsive_helper.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import '../api/api_service.dart';
-import 'dart:convert';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:lottie/lottie.dart';
+import 'package:provider/provider.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:top_snackbar_flutter/custom_snack_bar.dart';
+import 'package:top_snackbar_flutter/top_snack_bar.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -23,14 +23,16 @@ class LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final passwordFocusNode = FocusNode();
 
-  bool isLoading = false;
   bool passwordVisible = false;
   bool hasLoginError = false;
   bool _autoValidate = false;
   bool hasAutofilled = false;
 
-  bool _isEmailValid(String email) =>
-      RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(email);
+  bool _isEmailValid(String email) {
+    return RegExp(
+      r"^[a-zA-Z0-9.]+@[a-zA-Z0-9]+\.[a-zA-Z]{2,4}$",
+    ).hasMatch(email);
+  }
 
   void _clearServerError() {
     if (hasLoginError) {
@@ -49,75 +51,90 @@ class LoginScreenState extends State<LoginScreen> {
 
   Future<void> _login() async {
     FocusScope.of(context).unfocus();
+    HapticFeedback.mediumImpact();
     if (!_formKey.currentState!.validate()) {
       setState(() => _autoValidate = true);
       return;
     }
-
-    setState(() {
-      isLoading = true;
-      hasLoginError = false;
-    });
-
+    final authProvider = context.read<AuthProvider>();
     try {
-      final response = await ApiService.login(
+      final result = await authProvider.login(
         emailController.text.trim(),
         passwordController.text.trim(),
       );
-      final responseData = jsonDecode(response.body);
-
-      if (response.statusCode == 200 && responseData['status'] == 'success') {
-        final user = responseData['user'];
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setBool('isLoggedIn', true);
-        await prefs.setString('userData', jsonEncode(user));
-
-        if (!mounted) return;
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (_) => HomeScreen(
-              id: (user['_id'] ?? user['id'] ?? '').toString(),
-              firstName: user['firstName'] ?? '',
-              lastName: user['lastName'] ?? '',
-              email: user['email'] ?? '',
-            ),
-          ),
-        );
+      if (!mounted) return;
+      if (result['success']) {
         TextInput.finishAutofillContext();
+        Navigator.pushReplacementNamed(context, "/home");
       } else {
         setState(() {
           hasLoginError = true;
           _autoValidate = true;
         });
         _formKey.currentState!.validate();
+        showTopSnackBar(
+          Overlay.of(context),
+          CustomSnackBar.error(
+            message: result['message'] ?? 'Login failed',
+            backgroundColor: AppColors.primary,
+            textStyle: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: AppColors.secondary,
+            ),
+          ),
+        );
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('❌ Connection Error: $e')));
-      }
-    } finally {
-      if (mounted) setState(() => isLoading = false);
+      if (!mounted) return;
+      showTopSnackBar(
+        Overlay.of(context),
+        CustomSnackBar.error(
+          message: 'Connection Error: $e',
+          textStyle: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: AppColors.secondary,
+          ),
+        ),
+      );
     }
   }
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final auth = context.read<AuthProvider>();
+      if (auth.tempEmail.isNotEmpty) {
+        emailController.text = auth.tempEmail;
+      }
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    SystemChrome.setSystemUIOverlayStyle(
+      const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        systemNavigationBarColor: AppColors.background,
+        systemNavigationBarIconBrightness: Brightness.dark,
+        statusBarIconBrightness: Brightness.dark,
+      ),
+    );
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    final auth = Provider.of<AuthProvider>(context);
     return GestureDetector(
       onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
       child: AnimatedOpacity(
-        duration: Duration(milliseconds: 300),
-        opacity: isLoading ? 0.8 : 1.0,
+        duration: const Duration(milliseconds: 300),
+        opacity: auth.isLoading ? 0.8 : 1.0,
         child: Scaffold(
           backgroundColor: AppColors.background,
           body: AbsorbPointer(
-            absorbing: isLoading,
+            absorbing: auth.isLoading,
             child: SafeArea(
               child: Center(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: 15),
+                  padding: R.symmetric(h: 15),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
@@ -126,17 +143,18 @@ class LoginScreenState extends State<LoginScreen> {
                         children: [
                           SvgPicture.asset(
                             'assets/images/dealio_logo.svg',
-                            height: 42,
+                            height: R.font(42),
                             colorFilter: ColorFilter.mode(
                               AppColors.secondary,
                               BlendMode.srcIn,
                             ),
-                            fit: BoxFit.contain,
+                            // fit: BoxFit.contain,
                           ),
                           Text(
                             "ealio",
                             style: TextStyle(
-                              fontSize: 50,
+                              fontSize: R.font(48),
+                              // fontSize: 48,
                               fontWeight: FontWeight.w700,
                               color: AppColors.secondary,
                               letterSpacing: -1.0,
@@ -144,23 +162,38 @@ class LoginScreenState extends State<LoginScreen> {
                           ),
                         ],
                       ),
-                      SizedBox(height: 50),
+                      SizedBox(height: R.h(50)),
+                      
                       // Login Card
                       ConstrainedBox(
                         constraints: BoxConstraints(
-                          maxWidth:
-                              400, // عشان ما يبقاش واسع أوي على الشاشات الكبيرة(الويب)
+                          maxWidth: ScreenUtil().screenWidth > 600
+                              ? 400
+                              : double.infinity,
                         ),
+                        // constraints: BoxConstraints(maxWidth: 400),
                         child: Container(
-                          padding: EdgeInsets.all(24),
+                          padding: R.all(15),
+                          // decoration: BoxDecoration(
+                          //   color: Colors.white,
+                          //   borderRadius: BorderRadius.circular(20),
+                          //   boxShadow: [
+                          //     BoxShadow(
+                          //       color: Colors.black.withOpacity(0.1),
+                          //       blurRadius: 20,
+                          //       offset: Offset(0, 10),
+                          //     ),
+                          //   ],
+                          // ),
                           decoration: BoxDecoration(
                             color: Colors.white,
-                            borderRadius: BorderRadius.circular(20),
+                            borderRadius: BorderRadius.circular(R.r(20)),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withOpacity(0.1),
-                                blurRadius: 20,
-                                offset: Offset(0, 10),
+                                color: Colors.black.withOpacity(0.07),
+                                blurRadius: R.r(30),
+                                offset: const Offset(0, 12),
+                                spreadRadius: -5,
                               ),
                             ],
                           ),
@@ -175,49 +208,57 @@ class LoginScreenState extends State<LoginScreen> {
                                   Text(
                                     "Welcome Back",
                                     style: TextStyle(
-                                      fontSize: 26,
+                                      fontSize: R.font(24),
+                                      // fontSize: 24,
                                       fontWeight: FontWeight.bold,
                                       color: AppColors.secondary.withOpacity(
                                         0.85,
                                       ),
-                                      letterSpacing: -0.5,
+                                      // letterSpacing: -0.2,
                                     ),
                                   ),
-                                  SizedBox(height: 12),
+                                  SizedBox(height: R.h(12)),
                                   Text(
                                     "Login to continue your journey",
                                     style: TextStyle(
-                                      fontSize: 14,
+                                      fontSize: R.font(13),
                                       color: Colors.grey[500],
                                     ),
                                   ),
-                                  SizedBox(height: 45),
+                                  SizedBox(height: R.h(45)),
                                   _buildEmailField(),
-                                  SizedBox(height: 15),
+                                  SizedBox(height: R.h(15)),
                                   _buildPasswordField(),
                                   Align(
                                     alignment: Alignment.bottomRight,
                                     child: TextButton(
-                                      onPressed: () => Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (context) =>
-                                              ForgotPassword(),
-                                        ),
-                                      ),
+                                      onPressed: () async {
+                                        final returnedEmail =
+                                            await Navigator.pushNamed(
+                                              context,
+                                              '/forgotPassword',
+                                              arguments: emailController.text,
+                                            );
+                                        if (returnedEmail != null &&
+                                            returnedEmail is String) {
+                                          setState(() {
+                                            emailController.text =
+                                                returnedEmail;
+                                          });
+                                        }
+                                      },
                                       child: Text(
                                         'Forgot Password?',
-                                        // style: GoogleFonts.inter(
                                         style: TextStyle(
                                           color: AppColors.secondary
                                               .withOpacity(0.8),
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: R.font(13),
                                         ),
                                       ),
                                     ),
                                   ),
-                                  const SizedBox(height: 10),
+                                  SizedBox(height: R.h(10)),
 
                                   // Login Button
                                   SizedBox(
@@ -225,46 +266,57 @@ class LoginScreenState extends State<LoginScreen> {
                                     child: Container(
                                       width: double.infinity,
                                       decoration: BoxDecoration(
-                                        borderRadius: BorderRadius.circular(12),
+                                        borderRadius: BorderRadius.circular(
+                                          R.r(12),
+                                        ),
                                         boxShadow: [
                                           BoxShadow(
-                                            color: AppColors.primary
-                                                .withOpacity(0.2),
-                                            blurRadius: 10,
-                                            offset: const Offset(0, 6),
+                                            color: auth.isLoading
+                                                ? Colors.transparent
+                                                : AppColors.primary.withOpacity(
+                                                    0.2,
+                                                  ),
+                                            blurRadius: R.r(10),
+                                            offset: const Offset(2, 6),
                                           ),
                                         ],
                                       ),
                                       child: ElevatedButton(
-                                        onPressed: isLoading ? null : _login,
+                                        onPressed: auth.isLoading
+                                            ? null
+                                            : _login,
                                         style: ElevatedButton.styleFrom(
+                                          // minimumSize: Size(double.infinity, 50.h),
                                           backgroundColor: AppColors.primary,
+                                          disabledBackgroundColor: AppColors
+                                              .primary
+                                              .withOpacity(0.2),
                                           foregroundColor: AppColors.secondary,
                                           elevation: 0,
                                           shape: RoundedRectangleBorder(
                                             borderRadius: BorderRadius.circular(
-                                              10,
+                                              R.r(10),
                                             ),
                                           ),
                                           padding: EdgeInsets.symmetric(
-                                            vertical: 10,
+                                            vertical: R.isLargeScreen
+                                                ? 17.0
+                                                : R.r(10),
                                           ),
                                         ),
-                                        child: isLoading
-                                            ? const SizedBox(
-                                                height: 24,
-                                                width: 24,
-                                                child:
-                                                    CircularProgressIndicator(
-                                                      color:
-                                                          AppColors.secondary,
-                                                      strokeWidth: 2.5,
-                                                    ),
+                                        child: auth.isLoading
+                                            ? SizedBox(
+                                                height: R.r(26),
+                                                width: R.r(26),
+                                                child: Lottie.asset(
+                                                  'assets/animations/dealio_loading_js.json',
+                                                  fit: BoxFit.contain,
+                                                ),
                                               )
-                                            : const Text(
-                                                'LOGIN',
+                                            : Text(
+                                                'Login',
                                                 style: TextStyle(
-                                                  fontSize: 17,
+                                                  fontSize: R.font(17),
                                                   fontWeight: FontWeight.bold,
                                                 ),
                                               ),
@@ -277,7 +329,7 @@ class LoginScreenState extends State<LoginScreen> {
                           ),
                         ),
                       ),
-                      const SizedBox(height: 30),
+                      SizedBox(height: R.h(30)),
 
                       // Footer
                       Row(
@@ -287,27 +339,29 @@ class LoginScreenState extends State<LoginScreen> {
                             "Don't have an account? ",
                             style: TextStyle(
                               color: Colors.grey[600],
-                              fontSize: 15,
+                              fontSize: R.font(14),
                             ),
                           ),
                           TextButton(
-                            onPressed: () {
-                              saveEmail(emailController.text);
-                              Navigator.push(
+                            onPressed: () async {
+                              final returnedEmail = await Navigator.pushNamed(
                                 context,
-                                MaterialPageRoute(
-                                  builder: (context) => RegisterScreen(
-                                    initialEmail: emailController.text,
-                                  ),
-                                ),
+                                '/register',
+                                arguments: emailController.text,
                               );
+                              if (returnedEmail != null &&
+                                  returnedEmail is String) {
+                                setState(() {
+                                  emailController.text = returnedEmail;
+                                });
+                              }
                             },
                             child: Text(
                               "Sign Up",
                               style: TextStyle(
                                 color: AppColors.secondary,
                                 fontWeight: FontWeight.bold,
-                                fontSize: 15,
+                                fontSize: R.font(14),
                               ),
                             ),
                           ),
@@ -331,22 +385,22 @@ class LoginScreenState extends State<LoginScreen> {
       inputFormatters: [FilteringTextInputFormatter.deny(RegExp(r'\s'))],
       textInputAction: TextInputAction.next,
       keyboardType: TextInputType.emailAddress,
-      onChanged: (v) => _clearServerError(),
+      onChanged: (v) {
+        _clearServerError();
+        context.read<AuthProvider>().tempEmail = v;
+      },
       onFieldSubmitted: (_) =>
           FocusScope.of(context).requestFocus(passwordFocusNode),
-      decoration: _inputDecoration(
-        'Email Address',
-        hintText: 'example@mail.com',
-      ),
+      decoration: _inputDecoration('Email', hintText: 'you@example.com'),
       style: TextStyle(
-        fontSize: 16,
-        fontWeight: FontWeight.w500,
+        fontSize: R.font(16),
+        // fontWeight: FontWeight.w900,
         color: AppColors.secondary,
       ),
       validator: (value) {
         if (value == null || value.isEmpty) return 'Please enter your email';
         if (!_isEmailValid(value)) return 'Enter a valid email';
-        if (hasLoginError) return 'Invalid Credentials';
+        if (hasLoginError) return '';
         return null;
       },
     );
@@ -367,7 +421,7 @@ class LoginScreenState extends State<LoginScreen> {
             suffixIcon: IconButton(
               icon: Icon(
                 passwordVisible ? Icons.visibility : Icons.visibility_off,
-                size: 24,
+                size: R.r(24),
                 color: AppColors.secondary.withOpacity(0.6),
               ),
               onPressed: () =>
@@ -375,8 +429,8 @@ class LoginScreenState extends State<LoginScreen> {
             ),
           ),
       style: TextStyle(
-        fontSize: 16,
-        fontWeight: FontWeight.w500,
+        fontSize: R.font(16),
+        // fontWeight: FontWeight.w500,
         color: AppColors.secondary,
       ),
       validator: (value) {
@@ -390,36 +444,37 @@ class LoginScreenState extends State<LoginScreen> {
   InputDecoration _inputDecoration(String label, {String? hintText}) {
     return InputDecoration(
       labelText: label,
-      isDense: true,
+      // isDense: true,
       alignLabelWithHint: true,
       labelStyle: TextStyle(
         color: AppColors.secondary.withOpacity(0.7),
-        fontSize: 14,
-        fontWeight: FontWeight.w600,
+        fontSize: R.font(15),
+        fontWeight: FontWeight.w500,
+        letterSpacing: -0.05,
       ),
       hintText: hintText,
       hintStyle: TextStyle(
         color: AppColors.secondary.withOpacity(0.5),
-        fontSize: 15,
-        fontWeight: FontWeight.w400,
+        fontSize: R.font(15),
+        // fontWeight: FontWeight.w900,
       ),
       filled: true,
       fillColor: AppColors.fillColor,
-      contentPadding: EdgeInsets.fromLTRB(12, 14, 12, 14),
+      contentPadding: R.symmetric(h: 12, v: 14),
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(R.r(10)),
         borderSide: BorderSide.none,
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(R.r(10)),
         borderSide: BorderSide(color: AppColors.primary, width: 1.25),
       ),
       errorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(R.r(10)),
         borderSide: BorderSide(color: Colors.red, width: 1),
       ),
       focusedErrorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(R.r(10)),
         borderSide: BorderSide(color: Colors.red, width: 1.5),
       ),
     );

@@ -10,7 +10,7 @@ class ApiService {
       Uri.parse('$baseUrl/auth/login'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({
-        'email': email, // مطابق للباك إند الجديد
+        'email': email,
         'password': password,
       }),
     );
@@ -55,7 +55,7 @@ class ApiService {
       }
       return false;
     } catch (e) {
-      print("Error in checkAvailability: $e");
+      // print("Error in checkAvailability: $e");
       return false;
     }
   }
