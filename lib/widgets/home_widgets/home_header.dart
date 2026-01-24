@@ -57,7 +57,7 @@ class _HomeHeaderState extends State<HomeHeader> {
     if (imgbbApiKey.isEmpty) {
       debugPrint("❌ Error: IMGBB_API_KEY is not found in .env file");
       return null;
-    }
+    } 
 
     try {
       // 2. إنشاء طلب الرفع
