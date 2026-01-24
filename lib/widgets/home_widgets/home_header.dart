@@ -1,6 +1,5 @@
 import 'dart:convert';
-import 'dart:io';
-// import 'dart:typed_data';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:e_commerce/models/colors.dart';
 import 'package:e_commerce/providers/auth_provider.dart';
 import 'package:e_commerce/screens/login_screen.dart';
@@ -20,7 +19,6 @@ class HomeHeader extends StatefulWidget {
 }
 
 class _HomeHeaderState extends State<HomeHeader> {
-  File? _selectedImage; // للصورة في الموبايل
   XFile? _pickedFile; // هنخزن الملف هنا لأنه بيشتغل ويب وموبايل
   dynamic
   _previewImage; // لعرض الصورة محلياً (File للموبايل أو Uint8List للويب)
@@ -32,22 +30,19 @@ class _HomeHeaderState extends State<HomeHeader> {
 
     if (selected != null) {
       if (kIsWeb) {
-        //  لو ويب: بنقرأ الداتا كـ Bytes
         final bytes = await selected.readAsBytes();
         setState(() {
           _pickedFile = selected;
           _previewImage = bytes; // في الويب بنعرضها بـ Image.memory
         });
       } else {
-        // لو موبايل: بنستخدم الملف مباشرة
+        final bytes = await selected.readAsBytes();
         setState(() {
           _pickedFile = selected;
-          _previewImage = File(
-            selected.path,
-          ); // في الموبايل بنعرضها بـ Image.file
+          _previewImage = bytes;
         });
       }
-      print("✅ تم اختيار الصورة: ${selected.name}");
+      debugPrint("✅ تم اختيار الصورة: ${selected.name}");
     }
   }
 
@@ -57,7 +52,7 @@ class _HomeHeaderState extends State<HomeHeader> {
     const String imgbbBaseUrl = 'https://api.imgbb.com/1/upload';
 
     if (imgbbApiKey.isEmpty) {
-      print("❌ Error: IMGBB_API_KEY is not found in .env file");
+      debugPrint("❌ Error: IMGBB_API_KEY is not found in .env file");
       return null;
     }
 
@@ -82,7 +77,7 @@ class _HomeHeaderState extends State<HomeHeader> {
 
       request.files.add(multipartFile);
 
-      print("⏳ Uploading image to ImgBB (Universal Method)...");
+      debugPrint("⏳ Uploading image to ImgBB (Universal Method)...");
       var response = await request.send();
 
       // 4. response handling
@@ -91,16 +86,16 @@ class _HomeHeaderState extends State<HomeHeader> {
         var jsonResponse = json.decode(responseData);
 
         String imageUrl = jsonResponse['data']['url'];
-        print("✅ Upload successful: $imageUrl");
+        debugPrint("✅ Upload successful: $imageUrl");
         return imageUrl;
       } else {
-        print("⚠️ Server returned an error: ${response.statusCode}");
+        debugPrint("⚠️ Server returned an error: ${response.statusCode}");
         var errorResponse = await response.stream.bytesToString();
-        print("Details: $errorResponse");
+        debugPrint("Details: $errorResponse");
         return null;
       }
     } catch (e) {
-      print("❌ Exception caught during upload: $e");
+      debugPrint("❌ Exception caught during upload: $e");
       return null;
     }
   }
@@ -187,6 +182,7 @@ class _HomeHeaderState extends State<HomeHeader> {
 
           // const SizedBox(height: 20),
           // // Section for image upload
+          // here77777777777777777777777777777777777777777777777777777777777777777777777777777777777777
           // _buildImagePickerSection(),
         ],
       ),
@@ -197,15 +193,22 @@ class _HomeHeaderState extends State<HomeHeader> {
   Widget _buildImagePickerSection() {
     return Column(
       children: [
-        if (_selectedImage != null)
+        if (_previewImage != null)
           ClipRRect(
             borderRadius: BorderRadius.circular(10),
-            child: Image.file(
-              _selectedImage!,
-              height: 150,
-              width: double.infinity,
-              fit: BoxFit.cover,
-            ),
+            child: kIsWeb
+                ? Image.memory(
+                    _previewImage as Uint8List,
+                    height: 150,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                  )
+                : Image.memory(
+                    _previewImage as Uint8List,
+                    height: 150,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                  ),
           ),
         const SizedBox(height: 10),
         ElevatedButton.icon(
@@ -236,8 +239,6 @@ class _HomeHeaderState extends State<HomeHeader> {
                     ),
                   );
                 }
-                // هنا ممكن نسيف اللينك في متغير عشان تستخدمه في الـ UI
-                // setState(() { _uploadedImageUrl = link; });
               } else {
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
