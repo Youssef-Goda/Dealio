@@ -48,7 +48,10 @@ class _HomeHeaderState extends State<HomeHeader> {
 
   Future<String?> _uploadImageToImgBB(XFile imageXFile) async {
     // 1.fetch API key from .env file
-    final String imgbbApiKey = dotenv.env['IMGBB_API_KEY'] ?? '';
+    // التعديل ده بيخلي الكود يدور في ملف الـ .env (لو موجود عندك لوكال)
+    // ولو مش موجود (زي في فيرسال) يدور في إعدادات السيرفر
+    final String imgbbApiKey = const String.fromEnvironment('IMGBB_API_KEY') ?? dotenv.env['IMGBB_API_KEY'] ?? '';
+    // final String imgbbApiKey = dotenv.env['IMGBB_API_KEY'] ?? '';
     const String imgbbBaseUrl = 'https://api.imgbb.com/1/upload';
 
     if (imgbbApiKey.isEmpty) {

@@ -86,7 +86,6 @@ flutter:
     - assets/animations/dealio_loading_j.json
     - assets/animations/dealio_loading.json
     - assets/animations/dealio_loading_js.json
-    - .env
   #   - images/a_dot_ham.jpeg
 
 flutter_native_splash:
