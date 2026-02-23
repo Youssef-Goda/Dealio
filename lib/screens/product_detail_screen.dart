@@ -1,1 +1,0 @@
-// TODO: Product detail screen UI
