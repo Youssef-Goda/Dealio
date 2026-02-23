@@ -46,8 +46,12 @@ class UploadingImages {
 
         String imageUrl =
             jsonResponse['data']['display_url'] ?? jsonResponse['data']['url'];
-        debugPrint("✅ Upload successful: $imageUrl");
-        return imageUrl;
+
+        String proxiedUrl =
+            "https://corsproxy.io/?${Uri.encodeComponent(imageUrl)}";
+
+        debugPrint("✅ Upload successful: $proxiedUrl");
+        return proxiedUrl;
       } else {
         debugPrint("⚠️ Server error: ${response.statusCode}");
         return null;
