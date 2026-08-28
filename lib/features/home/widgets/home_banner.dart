@@ -14,7 +14,16 @@ import 'package:http/http.dart' as http;
 import 'package:top_snackbar_flutter/custom_snack_bar.dart';
 import 'package:top_snackbar_flutter/top_snack_bar.dart';
 import 'package:e_commerce/features/admin/widgets/uploading_images.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:url_launcher/url_launcher.dart';
+
+/// Landscape banner ratio on phones (wide, not too tall).
+const double kHomeBannerAspectMobile = 16 / 6;
+
+/// Landscape banner ratio on tablet/desktop (slightly shorter).
+const double kHomeBannerAspectDesktop = 16 / 5;
+
+const double kHomeBannerRadius = 16;
 
 // ── Default banners (shown when backend has none) ─────────────────────────────
 const List<Map<String, dynamic>> _kDefaultBanners = [
@@ -308,9 +317,11 @@ class _HomeBannerState extends State<HomeBanner> {
 
       final double mainFraction = isMobile ? 0.70 : 0.60;
       final double sideFraction = isMobile ? 0.50 : 0.50;
-      final double mainAspect = isMobile ? (16 / 7.5) : (16 / 5.5);
+      final double mainAspect =
+          isMobile ? kHomeBannerAspectMobile : kHomeBannerAspectDesktop;
 
-      // Main banner dimensions
+      // Main banner dimensions — height is derived from a fixed landscape ratio
+      // so the carousel never stretches or collapses across screen sizes.
       final double mainW = vw * mainFraction;
       final double mainH = mainW / mainAspect;
 
@@ -330,8 +341,8 @@ class _HomeBannerState extends State<HomeBanner> {
       final double stepPrevToMain = mainLeft - prevLeft;
       final double stepMainToNext = nextLeft - mainLeft;
 
-      final double sideRadius = isMobile ? 10 : 14;
-      final double mainRadius = isMobile ? 14 : 18;
+      const double sideRadius = kHomeBannerRadius;
+      const double mainRadius = kHomeBannerRadius;
 
       return SizedBox(
         height: mainH + 28, // +28 for dots row below
@@ -377,7 +388,10 @@ class _HomeBannerState extends State<HomeBanner> {
                             child: ClipRRect(
                               borderRadius: BorderRadius.circular(sideRadius),
                               child: _BannerSlide(
-                                  banner: _banners[prevIdx], isDark: isDark),
+                                banner: _banners[prevIdx],
+                                isDark: isDark,
+                                aspectRatio: mainAspect,
+                              ),
                             ),
                           ),
                         ),
@@ -394,8 +408,10 @@ class _HomeBannerState extends State<HomeBanner> {
                             child: ClipRRect(
                               borderRadius: BorderRadius.circular(sideRadius),
                               child: _BannerSlide(
-                                  banner: _banners[nextNextIdx],
-                                  isDark: isDark),
+                                banner: _banners[nextNextIdx],
+                                isDark: isDark,
+                                aspectRatio: mainAspect,
+                              ),
                             ),
                           ),
                         ),
@@ -411,7 +427,10 @@ class _HomeBannerState extends State<HomeBanner> {
                             borderRadius: BorderRadius.circular(
                                 sideRadius + (mainRadius - sideRadius) * offset),
                             child: _BannerSlide(
-                                banner: _banners[nextIdx], isDark: isDark),
+                              banner: _banners[nextIdx],
+                              isDark: isDark,
+                              aspectRatio: mainAspect,
+                            ),
                           ),
                         ),
 
@@ -425,7 +444,10 @@ class _HomeBannerState extends State<HomeBanner> {
                           borderRadius: BorderRadius.circular(
                               mainRadius - (mainRadius - sideRadius) * offset),
                           child: _BannerSlide(
-                              banner: _banners[mainIdx], isDark: isDark),
+                            banner: _banners[mainIdx],
+                            isDark: isDark,
+                            aspectRatio: mainAspect,
+                          ),
                         ),
                       ),
 
@@ -577,8 +599,13 @@ class _BannerScrollBehavior extends MaterialScrollBehavior {
 class _BannerSlide extends StatelessWidget {
   final Map<String, dynamic> banner;
   final bool isDark;
+  final double aspectRatio;
 
-  const _BannerSlide({required this.banner, required this.isDark});
+  const _BannerSlide({
+    required this.banner,
+    required this.isDark,
+    this.aspectRatio = kHomeBannerAspectMobile,
+  });
 
   String? _normalizeImageUrl(String? rawUrl) {
     if (rawUrl == null) return null;
@@ -622,86 +649,97 @@ class _BannerSlide extends StatelessWidget {
     final gradientColors = banner['gradient'] as List<Color>? ??
         [const Color(0xFF1a1a2e), const Color(0xFF16213e)];
 
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: gradientColors,
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-      ),
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          // Background image - rendered 100% pure & vibrant (no darkening layer)
-          if (imageUrl != null && imageUrl.isNotEmpty)
-            Image.network(
-              imageUrl,
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-            ),
+    final hasOverlayCopy = title.isNotEmpty || subtitle.isNotEmpty;
 
-          // Subtle gradient ONLY behind text if title or subtitle exist
-          if (title.isNotEmpty || subtitle.isNotEmpty)
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              height: 80,
-              child: Container(
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.bottomCenter,
-                    end: Alignment.topCenter,
-                    colors: [Colors.black54, Colors.transparent],
-                  ),
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(kHomeBannerRadius),
+      child: AspectRatio(
+        aspectRatio: aspectRatio,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: gradientColors,
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
               ),
             ),
-
-          // Text content
-          if (title.isNotEmpty || subtitle.isNotEmpty)
-            Positioned(
-              left: 20,
-              bottom: 16,
-              right: 20,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (title.isNotEmpty)
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 17,
-                        fontWeight: FontWeight.bold,
-                        shadows: [
-                          Shadow(blurRadius: 6, color: Colors.black87),
-                        ],
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  if (subtitle.isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      subtitle,
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 12,
-                        shadows: [
-                          Shadow(blurRadius: 4, color: Colors.black87),
-                        ],
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ],
+            if (imageUrl != null && imageUrl.isNotEmpty)
+              CachedNetworkImage(
+                imageUrl: imageUrl,
+                fit: BoxFit.cover,
+                alignment: Alignment.center,
+                width: double.infinity,
+                height: double.infinity,
+                fadeInDuration: const Duration(milliseconds: 250),
+                placeholder: (_, __) => ColoredBox(
+                  color: isDark
+                      ? const Color(0xFF1A1A2E)
+                      : const Color(0xFFE8E8ED),
+                ),
+                errorWidget: (_, __, ___) => const SizedBox.shrink(),
               ),
-            ),
-        ],
+            if (hasOverlayCopy)
+              const DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.transparent,
+                      Color(0x66000000),
+                      Color(0xB3000000),
+                    ],
+                    stops: [0.40, 0.72, 1.0],
+                  ),
+                ),
+              ),
+            if (hasOverlayCopy)
+              Positioned(
+                left: 20,
+                bottom: 16,
+                right: 20,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (title.isNotEmpty)
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 17,
+                          fontWeight: FontWeight.bold,
+                          shadows: [
+                            Shadow(blurRadius: 6, color: Colors.black87),
+                          ],
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    if (subtitle.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        subtitle,
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 12,
+                          shadows: [
+                            Shadow(blurRadius: 4, color: Colors.black87),
+                          ],
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -1622,22 +1660,18 @@ class _BannerSkeleton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final screenW = MediaQuery.of(context).size.width;
-    final isLarge = screenW >= 900;
-    return Center(
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: isLarge ? 900 : double.infinity),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: AspectRatio(
-            aspectRatio: isLarge ? (16 / 5.5) : (16 / 7),
-            child: Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(18),
-                color: isDark
-                    ? Colors.white.withValues(alpha: 0.07)
-                    : Colors.grey[200],
-              ),
-            ),
+    final isMobile = screenW < 600;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: AspectRatio(
+        aspectRatio:
+            isMobile ? kHomeBannerAspectMobile : kHomeBannerAspectDesktop,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(kHomeBannerRadius),
+          child: ColoredBox(
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.07)
+                : Colors.grey[200]!,
           ),
         ),
       ),
