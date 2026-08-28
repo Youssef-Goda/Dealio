@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "605041819048",
+    "project_id": "dealio-eg7",
+    "storage_bucket": "dealio-eg7.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:605041819048:android:77996cc4f65b7e7e28319d",
+        "android_client_info": {
+          "package_name": "com.example.e_commerce"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCH8t9nLO7vcff2KE57Csx5nFPweDU5o1U"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

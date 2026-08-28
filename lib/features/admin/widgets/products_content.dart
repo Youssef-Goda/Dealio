@@ -1,13 +1,17 @@
 import 'package:e_commerce/core/constants/colors.dart';
+import 'package:e_commerce/core/widgets/dealio_skeleton.dart';
 import 'package:e_commerce/features/admin/widgets/add_product_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:lottie/lottie.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
+
+// import 'package:lucide_icons/lucide_icons.dart';
 import 'package:provider/provider.dart';
-import 'package:pluto_grid/pluto_grid.dart';
 import 'package:e_commerce/data/providers/product_provider.dart';
 import 'package:e_commerce/core/utils/responsive_helper.dart';
+import 'package:e_commerce/features/admin/widgets/product_details_dialog.dart';
+import 'package:e_commerce/data/models/product_model.dart';
 
 class ProductsContent extends StatefulWidget {
   const ProductsContent({super.key});
@@ -16,10 +20,9 @@ class ProductsContent extends StatefulWidget {
 }
 
 class _ProductsContentState extends State<ProductsContent> {
-  PlutoGridStateManager? stateManager;
   final TextEditingController _searchController = TextEditingController();
   String _selectedFilter = 'All';
-  bool isLoading = false;
+  String _sortBy = 'Newest';
 
   @override
   void initState() {
@@ -33,49 +36,101 @@ class _ProductsContentState extends State<ProductsContent> {
     super.dispose();
   }
 
-  void _applySearch(String searchText) {
-    if (stateManager == null) return;
-    stateManager!.setShowLoading(true);
-    stateManager!.setFilter((element) {
-      if (searchText.isEmpty) return true;
-      final query = searchText.toLowerCase();
-      return element.cells['id']!.value.toString().contains(query) ||
-          element.cells['name']!.value.toString().toLowerCase().contains(
-            query,
-          ) ||
-          element.cells['price']!.value.toString().contains(query);
-    });
-    stateManager!.setShowLoading(false);
+  String _formatDateForSearch(String isoString) {
+    if (isoString.isEmpty) return '';
+    try {
+      final dt = DateTime.parse(isoString);
+      return DateFormat('yyyy-MM-dd').format(dt);
+    } catch (_) {
+      return isoString.toLowerCase();
+    }
   }
 
-  void _applyFilter(String filter) {
-    if (stateManager == null) return;
-    setState(() => _selectedFilter = filter);
-    stateManager!.setShowLoading(true);
-    stateManager!.setFilter((element) {
-      if (filter == 'All') return true;
-      final qty = element.cells['countInStock']!.value as int;
-      switch (filter) {
-        case 'In Stock':
-          return qty > 10;
-        case 'Out of Stock':
-          return qty == 0;
-        case 'Low Stock':
-          return qty > 0 && qty <= 10;
-        default:
-          return true;
+  List<Product> _getFilteredAndSortedProducts(List<Product> products) {
+    final searchText = _searchController.text.toLowerCase().trim();
+
+    var filtered = products.where((element) {
+      bool matchesSearch = true;
+
+      if (searchText.isNotEmpty) {
+        final String code = element.code.toLowerCase();
+        final String name = element.name.toLowerCase();
+        final String desc = element.description.toLowerCase();
+        final String price = element.price.toString().toLowerCase();
+
+        matchesSearch =
+            code.contains(searchText) ||
+            name.contains(searchText) ||
+            desc.contains(searchText) ||
+            price.contains(searchText);
       }
-    });
-    stateManager!.setShowLoading(false);
+
+      bool matchesFilter = true;
+      if (_selectedFilter != 'All') {
+        final qty = element.countInStock;
+        switch (_selectedFilter) {
+          case 'In Stock':
+            matchesFilter = qty > 10;
+            break;
+          case 'Out of Stock':
+            matchesFilter = qty == 0;
+            break;
+          case 'Low Stock':
+            matchesFilter = qty > 0 && qty <= 10;
+            break;
+        }
+      }
+
+      return matchesSearch && matchesFilter;
+    }).toList();
+
+    // Sort
+    switch (_sortBy) {
+      case 'Newest':
+        filtered.sort((a, b) {
+          final aDate = a.createdAt;
+          final bDate = b.createdAt;
+          if (aDate == null && bDate == null) return (b.id).compareTo(a.id);
+          if (aDate == null) return 1;
+          if (bDate == null) return -1;
+          return bDate.compareTo(aDate);
+        });
+        break;
+      case 'Oldest':
+        filtered.sort((a, b) {
+          final aDate = a.createdAt;
+          final bDate = b.createdAt;
+          if (aDate == null && bDate == null) return (a.id).compareTo(b.id);
+          if (aDate == null) return 1;
+          if (bDate == null) return -1;
+          return aDate.compareTo(bDate);
+        });
+        break;
+      case 'Price High-Low':
+        filtered.sort((a, b) => b.price.compareTo(a.price));
+        break;
+      case 'Price Low-High':
+        filtered.sort((a, b) => a.price.compareTo(b.price));
+        break;
+      case 'Name A-Z':
+        filtered.sort(
+          (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+        );
+        break;
+      case 'Name Z-A':
+        filtered.sort(
+          (a, b) => b.name.toLowerCase().compareTo(a.name.toLowerCase()),
+        );
+        break;
+    }
+
+    return filtered;
   }
 
-  void _handleBulkDelete() async {
-    if (stateManager == null) return;
-    final selectedRows = stateManager!.checkedRows;
-    if (selectedRows.isEmpty) return;
-    final idsToDelete = selectedRows
-        .map((r) => r.cells['id']!.value.toString())
-        .toList();
+  void _handleBulkDelete(BuildContext context) async {
+    final productProv = context.read<ProductProvider>();
+    final selectedIds = productProv.selectedProductIds;
+    if (selectedIds.isEmpty) return;
 
     final bool? confirm = await showDialog<bool>(
       context: context,
@@ -86,12 +141,12 @@ class _ProductsContentState extends State<ProductsContent> {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.red.withOpacity(0.1),
+                color: AppColors.errorRed.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: const Icon(
                 LucideIcons.trash2,
-                color: Colors.red,
+                color: AppColors.errorRed,
                 size: 20,
               ),
             ),
@@ -103,7 +158,8 @@ class _ProductsContentState extends State<ProductsContent> {
           ],
         ),
         content: Text(
-          'Are you sure you want to delete ${idsToDelete.length} product${idsToDelete.length > 1 ? 's' : ''}?\nThis action cannot be undone.',
+          'Are you sure you want to delete ${selectedIds.length} '
+          'product${selectedIds.length > 1 ? 's' : ''}?\nThis action cannot be undone.',
         ),
         actions: [
           TextButton(
@@ -112,8 +168,8 @@ class _ProductsContentState extends State<ProductsContent> {
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
+              backgroundColor: AppColors.errorRed,
+              foregroundColor: AppColors.white,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(8),
               ),
@@ -126,9 +182,11 @@ class _ProductsContentState extends State<ProductsContent> {
     );
 
     if (confirm == true && mounted) {
-      final productProv = context.read<ProductProvider>();
-      for (final id in idsToDelete) await productProv.deleteProduct(id);
-      stateManager!.removeRows(selectedRows);
+      final idsToDelete = List<String>.from(selectedIds);
+      for (final id in idsToDelete) {
+        await productProv.deleteProduct(id);
+      }
+      productProv.selectedProductIds.clear();
       if (mounted) setState(() {});
     }
   }
@@ -137,266 +195,280 @@ class _ProductsContentState extends State<ProductsContent> {
   Widget build(BuildContext context) {
     return Consumer<ProductProvider>(
       builder: (context, productProv, _) {
-        return Padding(
-          padding: R.all(context, 20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildHeader(context, productProv),
-              const SizedBox(height: 20),
-              Expanded(child: _buildGridContainer(context, productProv)),
-            ],
+        final filteredProducts = _getFilteredAndSortedProducts(
+          productProv.products,
+        );
+        final bool isMobile = R.isMobile(context);
+        final bool isLandscapeMobile = MediaQuery.of(context).size.height < 600;
+        final bool shouldScroll = isMobile || isLandscapeMobile;
+
+        final Widget content = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _ProductsHeader(
+              checkedRowsCount: productProv.selectedProductIds.length,
+              onBulkDelete: () => _handleBulkDelete(context),
+              isLoading: productProv.isLoading,
+              onAddProduct: () => showAddProductDialog(context),
+            ),
+            const SizedBox(height: 24),
+            _ProductsStatsRow(productProv: productProv),
+            const SizedBox(height: 20),
+            _ProductsSearchFilterBar(
+              searchController: _searchController,
+              sortBy: _sortBy,
+              selectedFilter: _selectedFilter,
+              onSearchChanged: (v) => setState(() {}),
+              onSortByChanged: (v) => setState(() => _sortBy = v),
+              onFilterChanged: (v) => setState(() => _selectedFilter = v),
+            ),
+            const SizedBox(height: 20),
+            shouldScroll
+                ? SizedBox(
+                    height: 450,
+                    child: _CustomProductsTable(
+                      products: filteredProducts,
+                      productProv: productProv,
+                    ),
+                  )
+                : Expanded(
+                    child: _CustomProductsTable(
+                      products: filteredProducts,
+                      productProv: productProv,
+                    ),
+                  ),
+          ],
+        );
+
+        return RefreshIndicator(
+          onRefresh: () => productProv.fetchProducts(),
+          color: const Color(0xFFFFD700),
+          child: Padding(
+            padding: R.all(context, 20),
+            child: shouldScroll
+                ? SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    child: content,
+                  )
+                : content,
           ),
         );
       },
     );
   }
+}
 
-  Widget _buildGridContainer(
-    BuildContext context,
-    ProductProvider productProv,
-  ) {
-    const double radius = 15;
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(radius),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.08),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: productProv.isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : PlutoGrid(
-              configuration: PlutoGridConfiguration(
-                scrollbar: const PlutoGridScrollbarConfig(
-                  isAlwaysShown: false,
-                  scrollbarThickness: 6,
-                  scrollbarRadius: Radius.circular(3),
-                ),
-                style: PlutoGridStyleConfig(
-                  gridBorderRadius: BorderRadius.circular(radius),
-                  gridBackgroundColor: AppColors.fillColor,
-                  columnTextStyle: TextStyle(
-                    color: AppColors.secondary,
-                    fontWeight: FontWeight.bold,
-                    fontSize: R.font(context, 13),
-                  ),
-                  columnHeight: 50,
-                  rowHeight: R.isMobile(context) ? 65 : 55,
-                  rowColor: Colors.white,
-                  evenRowColor: const Color(0xFFF9FAFB),
-                  gridBorderColor: Colors.transparent,
-                  enableColumnBorderVertical: false,
-                  enableCellBorderVertical: false,
-                  enableCellBorderHorizontal: true,
-                  borderColor: Colors.grey.withOpacity(0.08),
-                  activatedColor: AppColors.primary.withOpacity(0.04),
-                  activatedBorderColor: AppColors.primary,
-                ),
-                columnSize: const PlutoGridColumnSizeConfig(
-                  autoSizeMode: PlutoAutoSizeMode.scale,
+// ===========================================================================
+// PRIVATE SUB-WIDGETS
+// ===========================================================================
+
+class _ProductsHeader extends StatelessWidget {
+  final int checkedRowsCount;
+  final VoidCallback onBulkDelete;
+  final bool isLoading;
+  final VoidCallback onAddProduct;
+
+  const _ProductsHeader({
+    required this.checkedRowsCount,
+    required this.onBulkDelete,
+    required this.isLoading,
+    required this.onAddProduct,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Products Management',
+                style: TextStyle(
+                  fontSize: 26,
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).textTheme.headlineMedium?.color,
                 ),
               ),
-              columns: _buildColumns(productProv),
-              rows: _buildRows(productProv),
-              onLoaded: (event) {
-                stateManager = event.stateManager;
-                stateManager!.setSelectingMode(PlutoGridSelectingMode.row);
-                setState(() {});
-              },
-              onRowChecked: (_) => setState(() {}),
-            ),
-    );
-  }
-
-  Widget _buildHeader(BuildContext context, ProductProvider prov) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
+              const SizedBox(height: 4),
+              Text(
+                'Manage and monitor your inventory',
+                style: TextStyle(
+                  color: Theme.of(context).hintColor,
+                  fontSize: 14,
+                ),
+              ),
+            ],
+          ),
+        ),
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Products Management',
-                    style: TextStyle(
-                      fontSize: 26,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.secondary,
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              child: checkedRowsCount > 0
+                  ? Padding(
+                      key: const ValueKey('bulk_delete'),
+                      padding: const EdgeInsets.only(right: 12),
+                      child: TextButton.icon(
+                        style: TextButton.styleFrom(
+                          backgroundColor: AppColors.errorRed.withOpacity(
+                            isDark ? 0.15 : 0.08,
+                          ),
+                          foregroundColor: AppColors.errorRed,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            side: BorderSide(
+                              color: AppColors.errorRed.withOpacity(0.3),
+                            ),
+                          ),
+                        ),
+                        icon: const Icon(LucideIcons.trash2, size: 16),
+                        label: Text('Delete ($checkedRowsCount)'),
+                        onPressed: onBulkDelete,
+                      ),
+                    )
+                  : const SizedBox.shrink(),
+            ),
+            Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  if (!isLoading)
+                    BoxShadow(
+                      color: AppColors.primary.withOpacity(
+                        isDark ? 0.25 : 0.15,
+                      ),
+                      blurRadius: 20,
+                      spreadRadius: 2,
                     ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Manage and monitor your inventory',
-                    style: TextStyle(color: Colors.grey[500], fontSize: 14),
-                  ),
                 ],
               ),
-            ),
-            Row(
-              children: [
-                AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 200),
-                  transitionBuilder: (child, anim) =>
-                      FadeTransition(opacity: anim, child: child),
-                  child:
-                      (stateManager != null &&
-                          stateManager!.checkedRows.isNotEmpty)
-                      ? Padding(
-                          key: const ValueKey('bulk_delete'),
-                          padding: const EdgeInsets.only(right: 12),
-                          child: TextButton.icon(
-                            style: TextButton.styleFrom(
-                              backgroundColor: Colors.red.withOpacity(0.08),
-                              foregroundColor: Colors.red,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 12,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10),
-                                side: BorderSide(
-                                  color: Colors.red.withOpacity(0.3),
-                                ),
-                              ),
-                            ),
-                            icon: const Icon(LucideIcons.trash2, size: 16),
-                            label: Text(
-                              'Delete (${stateManager!.checkedRows.length})',
-                            ),
-                            onPressed: _handleBulkDelete,
-                          ),
-                        )
-                      : const SizedBox.shrink(key: ValueKey('no_bulk')),
-                ),
-                ConstrainedBox(
-                  constraints: BoxConstraints(maxWidth: R.w(context, 220)),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(R.r(context, 12)),
-                      boxShadow: [
-                        BoxShadow(
-                          color: isLoading
-                              ? Colors.transparent
-                              : AppColors.primary.withOpacity(0.3),
-                          blurRadius: 12,
-                          offset: const Offset(0, 6),
-                        ),
-                      ],
-                    ),
-                    child: ElevatedButton.icon(
-                      onPressed: isLoading
-                          ? null
-                          : () => showAddProductDialog(context),
-                      style: ElevatedButton.styleFrom(
-                        minimumSize: const Size(double.infinity, 48),
-                        backgroundColor: AppColors.primary,
-                        disabledBackgroundColor: AppColors.primary.withOpacity(
-                          0.2,
-                        ),
-                        foregroundColor: AppColors.secondary,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(R.r(context, 10)),
-                        ),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 12,
-                        ),
-                      ),
-                      icon: isLoading
-                          ? const SizedBox.shrink()
-                          : const Icon(
-                              LucideIcons.plus,
-                              color: AppColors.secondary,
-                              size: 18,
-                            ),
-                      label: isLoading
-                          ? SizedBox(
-                              height: R.r(context, 24),
-                              width: R.r(context, 24),
-                              child: Lottie.asset(
-                                'assets/animations/dealio_loading_js.json',
-                                fit: BoxFit.contain,
-                              ),
-                            )
-                          : Text(
-                              'Add Product',
-                              style: TextStyle(
-                                fontSize: R.font(context, 15),
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                    ),
+              child: ElevatedButton.icon(
+                onPressed: isLoading ? null : onAddProduct,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: AppColors.secondary,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 12,
                   ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  elevation: 0,
                 ),
-              ],
+                icon: isLoading
+                    ? const SizedBox.shrink()
+                    : const Icon(LucideIcons.plus, size: 18),
+                label: isLoading
+                    ? SizedBox(
+                        height: 24,
+                        width: 24,
+                        child: Lottie.asset(
+                          'assets/animations/dealio_loading_js.json',
+                        ),
+                      )
+                    : const Text(
+                        'Add Product',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+              ),
             ),
           ],
         ),
-        const SizedBox(height: 20),
-        Row(
-          children: [
-            _buildStatCard(
-              'Total Products',
-              prov.products.length.toString(),
-              LucideIcons.package,
-              const Color(0xFF3B82F6),
-            ),
-            _buildStatCard(
-              'In Stock',
-              prov.products.where((p) => p.countInStock > 10).length.toString(),
-              LucideIcons.checkCircle,
-              const Color(0xFF22C55E),
-            ),
-            _buildStatCard(
-              'Low Stock',
-              prov.products
-                  .where((p) => p.countInStock > 0 && p.countInStock <= 10)
-                  .length
-                  .toString(),
-              LucideIcons.trendingDown,
-              const Color(0xFFF59E0B),
-            ),
-            _buildStatCard(
-              'Out of Stock',
-              prov.products.where((p) => p.countInStock == 0).length.toString(),
-              LucideIcons.alertTriangle,
-              const Color(0xFFEF4444),
-            ),
-          ],
-        ),
-        const SizedBox(height: 20),
-        _buildSearchAndFilter(context),
       ],
     );
   }
+}
+
+class _ProductsStatsRow extends StatelessWidget {
+  final ProductProvider productProv;
+  const _ProductsStatsRow({required this.productProv});
 
   Widget _buildStatCard(
+    BuildContext context,
     String title,
     String value,
     IconData icon,
     Color color,
   ) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bool isPortraitMobile = MediaQuery.of(context).size.width < 550;
+
+    if (isPortraitMobile) {
+      return Expanded(
+        child: Container(
+          margin: const EdgeInsets.only(right: 6),
+          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+          decoration: BoxDecoration(
+            color: isDark ? color.withOpacity(0.05) : Theme.of(context).cardColor,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isDark
+                  ? color.withOpacity(0.2)
+                  : Theme.of(context).dividerColor.withOpacity(0.05),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: isDark ? Colors.black26 : color.withOpacity(0.03),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, color: color, size: 18),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                value,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).textTheme.bodyLarge?.color,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Expanded(
       child: Container(
         margin: const EdgeInsets.only(right: 14),
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: isDark ? color.withOpacity(0.05) : Theme.of(context).cardColor,
           borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: isDark
+                ? color.withOpacity(0.2)
+                : Theme.of(context).dividerColor.withOpacity(0.05),
+          ),
           boxShadow: [
             BoxShadow(
-              color: color.withOpacity(0.1),
-              blurRadius: 14,
+              color: isDark ? Colors.black26 : color.withOpacity(0.05),
+              blurRadius: 10,
               offset: const Offset(0, 4),
             ),
           ],
@@ -406,8 +478,16 @@ class _ProductsContentState extends State<ProductsContent> {
             Container(
               padding: const EdgeInsets.all(11),
               decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
+                color: color.withOpacity(0.12),
                 borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  if (isDark)
+                    BoxShadow(
+                      color: color.withOpacity(0.2),
+                      blurRadius: 8,
+                      spreadRadius: 1,
+                    ),
+                ],
               ),
               child: Icon(icon, color: color, size: 22),
             ),
@@ -419,7 +499,7 @@ class _ProductsContentState extends State<ProductsContent> {
                   Text(
                     title,
                     style: TextStyle(
-                      color: Colors.grey[500],
+                      color: Theme.of(context).hintColor,
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
                     ),
@@ -427,9 +507,10 @@ class _ProductsContentState extends State<ProductsContent> {
                   const SizedBox(height: 3),
                   Text(
                     value,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
+                      color: Theme.of(context).textTheme.bodyLarge?.color,
                     ),
                   ),
                 ],
@@ -441,567 +522,814 @@ class _ProductsContentState extends State<ProductsContent> {
     );
   }
 
-  Widget _buildSearchAndFilter(BuildContext context) {
+  @override
+  Widget build(BuildContext context) {
+    // Show stat-card skeletons while loading for a polished first impression.
+    if (productProv.isLoading) {
+      return const AdminStatCardSkeleton();
+    }
+    return Row(
+      children: [
+        _buildStatCard(
+          context,
+          'Total Products',
+          productProv.products.length.toString(),
+          LucideIcons.package,
+          AppColors.infoBlue,
+        ),
+        _buildStatCard(
+          context,
+          'In Stock',
+          productProv.products
+              .where((p) => p.countInStock > 10)
+              .length
+              .toString(),
+          LucideIcons.circleCheckBig,
+          AppColors.successGreen,
+        ),
+        _buildStatCard(
+          context,
+          'Low Stock',
+          productProv.products
+              .where((p) => p.countInStock > 0 && p.countInStock <= 10)
+              .length
+              .toString(),
+          LucideIcons.trendingDown,
+          AppColors.warningAmber,
+        ),
+        _buildStatCard(
+          context,
+          'Out of Stock',
+          productProv.products
+              .where((p) => p.countInStock == 0)
+              .length
+              .toString(),
+          LucideIcons.triangleAlert,
+          AppColors.errorRed,
+        ),
+      ],
+    );
+  }
+}
+
+class _ProductsSearchFilterBar extends StatelessWidget {
+  final TextEditingController searchController;
+  final String sortBy;
+  final String selectedFilter;
+  final ValueChanged<String> onSearchChanged;
+  final ValueChanged<String> onSortByChanged;
+  final ValueChanged<String> onFilterChanged;
+
+  static const List<String> _sortByOptions = [
+    'Newest',
+    'Oldest',
+    'Price High-Low',
+    'Price Low-High',
+    'Name A-Z',
+    'Name Z-A',
+  ];
+  static const List<String> _filterOptions = [
+    'All',
+    'In Stock',
+    'Out of Stock',
+    'Low Stock',
+  ];
+
+  const _ProductsSearchFilterBar({
+    required this.searchController,
+    required this.sortBy,
+    required this.selectedFilter,
+    required this.onSearchChanged,
+    required this.onSortByChanged,
+    required this.onFilterChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+    final bool isMobile = R.isMobile(context);
+
+    final inputDecoration = BoxDecoration(
+      color: isDark
+          ? Colors.white.withOpacity(0.04)
+          : AppColors.background.withOpacity(0.35),
+      borderRadius: BorderRadius.circular(10),
+      border: Border.all(
+        color: isDark
+            ? Colors.white.withOpacity(0.06)
+            : Colors.black.withOpacity(0.03),
+      ),
+    );
+
+    Widget buildDropdown({
+      required IconData icon,
+      required String value,
+      required List<String> options,
+      required ValueChanged<String> onChanged,
+      String? tooltip,
+    }) {
+      return Tooltip(
+        message: tooltip ?? '',
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: inputDecoration,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                size: 15,
+                color: Theme.of(context).hintColor.withOpacity(0.6),
+              ),
+              const SizedBox(width: 6),
+              DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  value: value,
+                  icon: Icon(
+                    LucideIcons.chevronDown,
+                    size: 14,
+                    color: Theme.of(context).hintColor.withOpacity(0.5),
+                  ),
+                  dropdownColor: Theme.of(context).cardColor,
+                  borderRadius: BorderRadius.circular(12),
+                  style: TextStyle(
+                    color: Theme.of(
+                      context,
+                    ).textTheme.bodyLarge?.color?.withOpacity(0.8),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  onChanged: (v) {
+                    if (v != null) onChanged(v);
+                  },
+                  items: options
+                      .map(
+                        (v) =>
+                            DropdownMenuItem<String>(value: v, child: Text(v)),
+                      )
+                      .toList(),
+                  isDense: true,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final searchField = TextField(
+      controller: searchController,
+      onChanged: onSearchChanged,
+      style: TextStyle(
+        color: Theme.of(context).textTheme.bodyLarge?.color,
+        fontSize: 14,
+      ),
+      decoration: InputDecoration(
+        hintText: 'Search products...',
+        hintStyle: TextStyle(
+          color: isDark
+              ? Colors.white24
+              : Theme.of(context).hintColor.withOpacity(0.4),
+          fontSize: 14,
+        ),
+        prefixIcon: Icon(
+          LucideIcons.search,
+          size: 17,
+          color: isDark
+              ? Colors.white24
+              : Theme.of(context).hintColor.withOpacity(0.4),
+        ),
+        suffixIcon: searchController.text.isNotEmpty
+            ? IconButton(
+                icon: Icon(
+                  LucideIcons.x,
+                  size: 16,
+                  color: isDark
+                      ? Colors.white24
+                      : Theme.of(context).hintColor.withOpacity(0.4),
+                ),
+                onPressed: () {
+                  searchController.clear();
+                  onSearchChanged('');
+                },
+              )
+            : null,
+        filled: true,
+        fillColor: isDark
+            ? Colors.white.withOpacity(0.04)
+            : AppColors.background.withOpacity(0.35),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide.none,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(
+            color: isDark
+                ? Colors.white.withOpacity(0.06)
+                : Colors.black.withOpacity(0.03),
+          ),
+        ),
+        // No yellow focus border — neutral grey instead
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(
+            color: isDark
+                ? Colors.white.withOpacity(0.12)
+                : Colors.black.withOpacity(0.08),
+            width: 1.5,
+          ),
+        ),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 12,
+        ),
+        isDense: true,
+      ),
+    );
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
+            color: isDark
+                ? Colors.black.withOpacity(0.2)
+                : Colors.black.withOpacity(0.02),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withOpacity(0.05)
+              : AppColors.surfaceLight,
+        ),
+      ),
+      child: isMobile
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                searchField,
+                const SizedBox(height: 12),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      buildDropdown(
+                        icon: LucideIcons.arrowUpDown,
+                        value: sortBy,
+                        options: _sortByOptions,
+                        onChanged: onSortByChanged,
+                        tooltip: 'Sort By',
+                      ),
+                      const SizedBox(width: 8),
+                      buildDropdown(
+                        icon: LucideIcons.listFilter,
+                        value: selectedFilter,
+                        options: _filterOptions,
+                        onChanged: onFilterChanged,
+                        tooltip: 'Filter',
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            )
+          : Row(
+              children: [
+                Expanded(child: searchField),
+                const SizedBox(width: 12),
+                buildDropdown(
+                  icon: LucideIcons.arrowUpDown,
+                  value: sortBy,
+                  options: _sortByOptions,
+                  onChanged: onSortByChanged,
+                  tooltip: 'Sort By',
+                ),
+                const SizedBox(width: 8),
+                buildDropdown(
+                  icon: LucideIcons.listFilter,
+                  value: selectedFilter,
+                  options: _filterOptions,
+                  onChanged: onFilterChanged,
+                  tooltip: 'Filter',
+                ),
+              ],
+            ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// CUSTOM TABLE
+// ---------------------------------------------------------------------------
+
+class _CustomProductsTable extends StatelessWidget {
+  final List<Product> products;
+  final ProductProvider productProv;
+
+  const _CustomProductsTable({
+    required this.products,
+    required this.productProv,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+    final bool isMobile = R.isMobile(context);
+
+    if (productProv.isLoading) {
+      return const AdminTableSkeleton();
+    }
+
+    if (products.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              LucideIcons.packageOpen,
+              size: 48,
+              color: Theme.of(context).hintColor.withOpacity(0.3),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'No products found.',
+              style: TextStyle(
+                color: Theme.of(context).hintColor.withOpacity(0.6),
+                fontSize: 14,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    Widget tableContent = Column(
+      children: [
+        _buildHeader(context, productProv),
+        Expanded(
+          child: ListView.separated(
+            padding: EdgeInsets.zero,
+            itemCount: products.length,
+            separatorBuilder: (context, index) => Divider(
+              height: 1,
+              thickness: 1,
+              color: Theme.of(context).dividerColor.withOpacity(0.05),
+            ),
+            itemBuilder: (context, index) {
+              return _TableRow(
+                product: products[index],
+                productProv: productProv,
+                isEven: index % 2 == 0,
+              );
+            },
+          ),
+        ),
+      ],
+    );
+
+    if (isMobile) {
+      tableContent = SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: SizedBox(
+          width: 850,
+          child: tableContent,
+        ),
+      );
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(isDark ? 0.25 : 0.04),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withOpacity(0.04)
+              : AppColors.surfaceLight,
+        ),
+      ),
+      clipBehavior: Clip.hardEdge,
+      child: tableContent,
+    );
+  }
+
+  Widget _buildHeader(BuildContext context, ProductProvider productProv) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      height: 54,
+      decoration: BoxDecoration(
+        // Seamless — matches table body card color
+        color: Theme.of(context).cardColor,
+        border: Border(
+          bottom: BorderSide(
+            color: isDark
+                ? Colors.white.withOpacity(0.06)
+                : Colors.black.withOpacity(0.05),
+            width: 1,
+          ),
+        ),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 50,
+            child: _CheckboxCell(
+              isChecked: productProv.isAllSelected,
+              onToggle: () => productProv.toggleSelectAll(),
+            ),
+          ),
+          const Expanded(flex: 1, child: _HeaderCell('SKU', center: true)),
+          const Expanded(flex: 4, child: _HeaderCell('Product Name')),
+          const Expanded(flex: 2, child: _HeaderCell('Price', center: true)),
+          const SizedBox(width: 80, child: _HeaderCell('Image', center: true)),
+          const Expanded(flex: 1, child: _HeaderCell('Qty', center: true)),
+          const Expanded(flex: 2, child: _HeaderCell('Status', center: true)),
+          const SizedBox(
+            width: 80,
+            child: _HeaderCell('Actions', center: true),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HeaderCell extends StatelessWidget {
+  final String title;
+  final bool center;
+
+  const _HeaderCell(this.title, {this.center = false});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: center
+          ? Center(
+              child: Text(
+                title,
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).hintColor.withOpacity(0.8),
+                  fontSize: 12,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            )
+          : Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                title,
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).hintColor.withOpacity(0.8),
+                  fontSize: 12,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ),
+    );
+  }
+}
+
+class _TableRow extends StatefulWidget {
+  final Product product;
+  final ProductProvider productProv;
+  final bool isEven;
+
+  const _TableRow({
+    required this.product,
+    required this.productProv,
+    required this.isEven,
+  });
+
+  @override
+  State<_TableRow> createState() => _TableRowState();
+}
+
+class _TableRowState extends State<_TableRow>
+    with SingleTickerProviderStateMixin {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isSelected = widget.productProv.selectedProductIds.contains(
+      widget.product.id,
+    );
+
+    final bgColor = isSelected
+        ? AppColors.primary.withOpacity(0.06)
+        : _isHovered
+        ? (isDark
+              ? Colors.white.withOpacity(0.04)
+              : AppColors.surfaceLight.withOpacity(0.6))
+        // even index = lighter tint, odd = transparent
+        : widget.isEven
+        ? (isDark
+              ? Colors.white.withOpacity(0.02)
+              : AppColors.surfaceLight.withOpacity(0.4))
+        : Colors.transparent;
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: GestureDetector(
+        onTap: () {
+          widget.productProv.toggleProductSelection(widget.product.id);
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          height: 68,
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          decoration: BoxDecoration(color: bgColor),
+          child: Row(
+            children: [
+              // 1. Checkbox: Fixed 50
+              SizedBox(
+                width: 50,
+                child: _CheckboxCell(
+                  isChecked: isSelected,
+                  onToggle: () => widget.productProv.toggleProductSelection(
+                    widget.product.id,
+                  ),
+                ),
+              ),
+              // 2. Code (SKU): Flex 1
+              Expanded(
+                flex: 1,
+                child: Center(
+                  child: Text(
+                    widget.product.code,
+                    style: TextStyle(
+                      color: Theme.of(context).hintColor,
+                      fontSize: 12,
+                      fontFamily: 'monospace',
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ),
+              // 3. Product Name: Flex 4
+              Expanded(
+                flex: 4,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Text(
+                    widget.product.name,
+                    style: TextStyle(
+                      color: Theme.of(context).textTheme.bodyLarge?.color,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ),
+              // 4. Price: Flex 2
+              Expanded(
+                flex: 2,
+                child: Center(
+                  child: Text(
+                    '${NumberFormat('#,###.##').format(widget.product.price)} EGP',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.successGreen,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+              ),
+              // 5. Image: Fixed 80
+              SizedBox(
+                width: 80,
+                child: Center(
+                  child: _buildImage(widget.product.imageUrls, context),
+                ),
+              ),
+              // 6. Qty: Flex 1
+              Expanded(
+                flex: 1,
+                child: Center(
+                  child: Text(
+                    widget.product.countInStock.toString(),
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: widget.product.countInStock == 0
+                          ? AppColors.errorRed
+                          : widget.product.countInStock <= 10
+                          ? AppColors.warningAmber
+                          : Theme.of(context).textTheme.bodyLarge?.color,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+              ),
+              // 7. Status: Flex 2
+              Expanded(
+                flex: 2,
+                child: Center(
+                  child: _buildStatus(widget.product.countInStock, context),
+                ),
+              ),
+              // 8. Actions: Fixed 80
+              SizedBox(
+                width: 80,
+                child: Center(
+                  child: Tooltip(
+                    message: 'View Details',
+                    child: InkWell(
+                      onTap: () {
+                        showProductDetailsDialog(
+                          context,
+                          widget.product,
+                          () async {
+                            await widget.productProv.deleteProduct(
+                              widget.product.id,
+                            );
+                          },
+                        );
+                      },
+                      borderRadius: BorderRadius.circular(10),
+                      child: Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: AppColors.actionIndigo.withOpacity(
+                            isDark ? 0.08 : 0.05,
+                          ),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: AppColors.actionIndigo.withOpacity(
+                              isDark ? 0.15 : 0.1,
+                            ),
+                          ),
+                        ),
+                        child: const Icon(
+                          LucideIcons.eye,
+                          size: 18,
+                          color: AppColors.actionIndigo,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildImage(List<String>? imageUrls, BuildContext context) {
+    final String? firstImage = (imageUrls != null && imageUrls.isNotEmpty)
+        ? imageUrls.first
+        : null;
+    return Container(
+      width: 40,
+      height: 40,
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: Theme.of(context).dividerColor.withOpacity(0.1),
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 4,
             offset: const Offset(0, 2),
           ),
         ],
       ),
-      child: Row(
-        children: [
-          Expanded(
-            flex: 2,
-            child: TextField(
-              controller: _searchController,
-              onChanged: (v) {
-                _applySearch(v);
-                setState(() {});
-              },
-              decoration: InputDecoration(
-                hintText: 'Search by ID, name, or price...',
-                hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
-                prefixIcon: Icon(
-                  LucideIcons.search,
+      child: firstImage != null
+          ? ClipRRect(
+              borderRadius: BorderRadius.circular(7),
+              child: Image.network(
+                firstImage,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Icon(
+                  LucideIcons.image,
+                  color: Theme.of(context).hintColor.withOpacity(0.3),
                   size: 18,
-                  color: Colors.grey[400],
                 ),
-                suffixIcon: _searchController.text.isNotEmpty
-                    ? IconButton(
-                        icon: Icon(
-                          Icons.close_rounded,
-                          size: 18,
-                          color: Colors.grey[400],
-                        ),
-                        onPressed: () {
-                          _searchController.clear();
-                          _applySearch('');
-                          setState(() {});
-                        },
-                      )
-                    : null,
-                filled: true,
-                fillColor: Colors.grey[50],
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: BorderSide(color: Colors.grey.shade200),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: BorderSide(color: Colors.grey.shade200),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: BorderSide(color: AppColors.primary, width: 1.5),
-                ),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 12,
-                ),
-                isDense: true,
               ),
+            )
+          : Icon(
+              LucideIcons.image,
+              color: Theme.of(context).hintColor.withOpacity(0.3),
+              size: 18,
             ),
-          ),
-          const SizedBox(width: 14),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              'All',
-              'In Stock',
-              'Out of Stock',
-              'Low Stock',
-            ].map(_filterChip).toList(),
-          ),
-        ],
-      ),
     );
   }
 
-  Widget _filterChip(String label) {
-    final bool isSelected = _selectedFilter == label;
-    return GestureDetector(
-      onTap: () => _applyFilter(label),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? AppColors.primary.withOpacity(0.15)
-              : Colors.grey[100],
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isSelected ? AppColors.primary : Colors.grey.shade300,
-            width: isSelected ? 1.5 : 1,
-          ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: isSelected ? AppColors.secondary : Colors.grey.shade600,
-            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-            fontSize: 13,
-          ),
+  Widget _buildStatus(int qty, BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bool inStock = qty > 10;
+    final bool lowStock = qty > 0 && qty <= 10;
+
+    final Color color = lowStock
+        ? AppColors.warningAmber
+        : inStock
+        ? (isDark ? const Color(0xFF4ADE80) : AppColors.successGreen)
+        : AppColors.errorRed;
+
+    final String label = lowStock
+        ? 'LOW STOCK'
+        : inStock
+        ? 'IN STOCK'
+        : 'OUT OF STOCK';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withOpacity(isDark ? 0.08 : 0.05),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.3), width: 1),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontWeight: FontWeight.bold,
+          fontSize: 10,
+          letterSpacing: 0.5,
         ),
       ),
     );
   }
+}
 
-  List<PlutoColumn> _buildColumns(ProductProvider productProv) {
-    return [
-      PlutoColumn(
-        title: 'All',
-        field: 'checkbox',
-        type: PlutoColumnType.text(),
-        width: 60,
-        enableRowChecked: true,
-        enableSorting: false,
-        enableEditingMode: false,
-        textAlign: PlutoColumnTextAlign.left,
-        titleTextAlign: PlutoColumnTextAlign.left,
-        enableContextMenu: false,
-        enableDropToResize: false,
-      ),
-      // PlutoColumn(
-      //   title: 'ID',
-      //   field: 'id',
-      //   type: PlutoColumnType.number(),
-      //   width: _getColumnWidth(context, 'id'),
-      //   textAlign: PlutoColumnTextAlign.center,
-      //   titleTextAlign: PlutoColumnTextAlign.center,
-      // ),
-      //   PlutoColumn(
-      //   title: '#',
-      //   field: 'serial_id',
-      //   type: PlutoColumnType.number(),
-      //   width: 80,
-      // ),
-      PlutoColumn(
-        title: 'Code',
-        field: 'code',
-        type: PlutoColumnType.text(),
-        width: 120,
-        textAlign: PlutoColumnTextAlign.center,
-        titleTextAlign: PlutoColumnTextAlign.center,
-        enableContextMenu: false,
-        enableDropToResize: false,
-      ),
-      PlutoColumn(
-        title: 'Product Name',
-        field: 'name',
-        type: PlutoColumnType.text(),
-        width: _getColumnWidth(context, 'name'),
-        enableContextMenu: false,
-        enableDropToResize: false,
-      ),
-      PlutoColumn(
-        title: 'Price',
-        field: 'price',
-        type: PlutoColumnType.number(),
-        width: _getColumnWidth(context, 'price'),
-        textAlign: PlutoColumnTextAlign.center,
-        titleTextAlign: PlutoColumnTextAlign.center,
-        enableContextMenu: false,
-        enableDropToResize: false,
-        renderer: (ctx) {
-          final double price =
-              double.tryParse(ctx.cell.value.toString()) ?? 0.0;
-          return Center(
-            child: Text(
-              '${NumberFormat('#,###.##').format(price)} EGP',
-              style: const TextStyle(
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF16A34A),
-              ),
-            ),
-          );
-        },
-      ),
-      PlutoColumn(
-        title: 'Old Price',
-        field: 'oldPrice',
-        type: PlutoColumnType.number(),
-        width: _getColumnWidth(context, 'oldPrice'),
-        textAlign: PlutoColumnTextAlign.center,
-        titleTextAlign: PlutoColumnTextAlign.center,
-        enableContextMenu: false,
-        enableDropToResize: false,
-        renderer: (ctx) {
-          final double? oldPrice = double.tryParse(
-            ctx.cell.value?.toString() ?? '',
-          );
-          if (oldPrice == null || oldPrice <= 0)
-            return Center(
-              child: Text(
-                '—',
-                style: TextStyle(color: Colors.grey[400], fontSize: 14),
-              ),
-            );
-          return Center(
-            child: Text(
-              '${NumberFormat('#,###.##').format(oldPrice)} EGP',
-              style: TextStyle(
-                color: Colors.grey[400],
-                decoration: TextDecoration.lineThrough,
-                fontSize: 13,
-              ),
-            ),
-          );
-        },
-      ),
-      PlutoColumn(
-        title: 'Image',
-        field: 'image',
-        type: PlutoColumnType.text(),
-        width: 80,
-        enableEditingMode: false,
-        enableSorting: false,
-        textAlign: PlutoColumnTextAlign.center,
-        titleTextAlign: PlutoColumnTextAlign.center,
-        enableColumnDrag: false,
-        enableContextMenu: false,
-        enableDropToResize: false,
-        renderer: (ctx) {
-          final List<String> images = List<String>.from(ctx.cell.value ?? []);
-          final String? firstImage = images.isNotEmpty ? images.first : null;
-          return Center(
-            child: Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: Colors.grey[100],
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.grey.withOpacity(0.15)),
-              ),
-              child: firstImage != null
-                  ? ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: Image.network(
-                        firstImage,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Icon(
-                          Icons.image_outlined,
-                          color: Colors.grey[400],
-                          size: 20,
-                        ),
-                      ),
-                    )
-                  : Icon(
-                      Icons.image_outlined,
-                      color: Colors.grey[400],
-                      size: 20,
-                    ),
-            ),
-          );
-        },
-      ),
-      PlutoColumn(
-        title: 'Qty',
-        field: 'countInStock',
-        type: PlutoColumnType.number(),
-        width: _getColumnWidth(context, 'qty'),
-        textAlign: PlutoColumnTextAlign.center,
-        titleTextAlign: PlutoColumnTextAlign.center,
-        enableContextMenu: false,
-        enableDropToResize: false,
-        renderer: (ctx) {
-          final int qty = ctx.cell.value as int? ?? 0;
-          return Center(
-            child: Text(
-              qty.toString(),
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                color: qty == 0
-                    ? Colors.red
-                    : qty <= 10
-                    ? Colors.orange
-                    : Colors.grey[800],
-              ),
-            ),
-          );
-        },
-      ),
-      PlutoColumn(
-        title: 'Status',
-        field: 'stockStatus',
-        type: PlutoColumnType.text(),
-        width: _getColumnWidth(context, 'status'),
-        enableSorting: false,
-        textAlign: PlutoColumnTextAlign.center,
-        titleTextAlign: PlutoColumnTextAlign.center,
-        enableContextMenu: false,
-        enableDropToResize: false,
-        renderer: (ctx) {
-          final int qty = ctx.row.cells['countInStock']?.value ?? 0;
-          final bool inStock = qty > 10;
-          final bool lowStock = qty > 0 && qty <= 10;
-          final Color color = lowStock
-              ? const Color(0xFFF59E0B)
-              : inStock
-              ? const Color(0xFF22C55E)
-              : const Color(0xFFEF4444);
-          final String label = lowStock
-              ? 'LOW STOCK'
-              : inStock
-              ? 'IN STOCK'
-              : 'OUT OF STOCK';
-          return Center(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.08),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: color.withOpacity(0.4)),
-              ),
-              child: Text(
-                label,
-                style: TextStyle(
-                  color: color,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 10,
-                  letterSpacing: 0.3,
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-      PlutoColumn(
-        title: 'Rating',
-        field: 'rating',
-        type: PlutoColumnType.number(format: '#.##'),
-        width: _getColumnWidth(context, 'rating'),
-        textAlign: PlutoColumnTextAlign.center,
-        titleTextAlign: PlutoColumnTextAlign.center,
-        enableContextMenu: false,
-        enableDropToResize: false,
-        renderer: (ctx) {
-          final double rating = double.tryParse(ctx.cell.value.toString()) ?? 0;
-          return Center(
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.star_rounded, size: 14, color: Colors.amber[600]),
-                const SizedBox(width: 3),
-                Text(
-                  rating.toStringAsFixed(1),
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
-              ],
-            ),
-          );
-        },
-      ),
-      PlutoColumn(
-        title: 'Actions',
-        field: 'actions',
-        type: PlutoColumnType.text(),
-        enableEditingMode: false,
-        enableSorting: false,
-        width: _getColumnWidth(context, 'actions'),
-        titleTextAlign: PlutoColumnTextAlign.center,
-        textAlign: PlutoColumnTextAlign.center,
-        enableContextMenu: false,
-        enableDropToResize: false,
-        renderer: (ctx) {
-          final String? productId = ctx.row.cells['id']?.value.toString();
-          final product = productProv.products.firstWhere(
-            (p) => p.id.toString() == productId,
-          );
-          return Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _actionBtn(
-                icon: LucideIcons.edit,
-                color: const Color(0xFF3B82F6),
-                tooltip: 'Edit',
-                onTap: () => showAddProductDialog(context, product: product),
-              ),
-              const SizedBox(width: 6),
-              _actionBtn(
-                icon: LucideIcons.trash2,
-                color: const Color(0xFFEF4444),
-                tooltip: 'Delete',
-                onTap: () async {
-                  final prov = context.read<ProductProvider>();
-                  if (await prov.deleteProduct(product.id))
-                    ctx.stateManager.removeRows([ctx.row]);
-                },
-              ),
-            ],
-          );
-        },
-      ),
-      PlutoColumn(
-        title: 'Add At',
-        field: 'createdAt_field',
-        type: PlutoColumnType.text(),
-        width: _getColumnWidth(context, 'createdAt'),
-        textAlign: PlutoColumnTextAlign.center,
-        titleTextAlign: PlutoColumnTextAlign.center,
-        enableContextMenu: false,
-        enableDropToResize: false,
-      ),
-      PlutoColumn(
-        title: 'Last Update',
-        field: 'updatedAt_field',
-        type: PlutoColumnType.text(),
-        width: _getColumnWidth(context, 'updatedAt'),
-        textAlign: PlutoColumnTextAlign.center,
-        titleTextAlign: PlutoColumnTextAlign.center,
-        enableContextMenu: false,
-        enableDropToResize: false,
-      ),
-    ];
-  }
+class _CheckboxCell extends StatefulWidget {
+  final bool isChecked;
+  final VoidCallback onToggle;
 
-  Widget _actionBtn({
-    required IconData icon,
-    required Color color,
-    required String tooltip,
-    required VoidCallback onTap,
-  }) {
-    return Tooltip(
-      message: tooltip,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
-        child: Container(
-          padding: const EdgeInsets.all(7),
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.08),
-            borderRadius: BorderRadius.circular(8),
+  const _CheckboxCell({required this.isChecked, required this.onToggle});
+
+  @override
+  State<_CheckboxCell> createState() => _CheckboxCellState();
+}
+
+class _CheckboxCellState extends State<_CheckboxCell> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final checkColor = AppColors.primary;
+    final checkBgChecked = AppColors.primary.withOpacity(isDark ? 0.18 : 0.12);
+    final checkBgHover = AppColors.primary.withOpacity(isDark ? 0.08 : 0.05);
+    final checkBorderIdle = isDark
+        ? Colors.white.withOpacity(0.25)
+        : Colors.black.withOpacity(0.2);
+
+    return Center(
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() => _hovered = false),
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          onTap: widget.onToggle,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            width: 18,
+            height: 18,
+            decoration: BoxDecoration(
+              color: widget.isChecked
+                  ? checkBgChecked
+                  : _hovered
+                  ? checkBgHover
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(
+                color: widget.isChecked
+                    ? checkColor
+                    : _hovered
+                    ? checkColor.withOpacity(0.6)
+                    : checkBorderIdle,
+                width: widget.isChecked ? 1.5 : 1.2,
+              ),
+            ),
+            child: widget.isChecked
+                ? Icon(LucideIcons.check, size: 13, color: checkColor)
+                : null,
           ),
-          child: Icon(icon, size: 16, color: color),
         ),
       ),
     );
-  }
-
-  List<PlutoRow> _buildRows(ProductProvider productProv) {
-    return (productProv.products.toList()..sort((a, b) => b.id.compareTo(a.id)))
-        .map(
-          (p) => PlutoRow(
-            cells: {
-              'checkbox': PlutoCell(value: ''),
-              // 'id': PlutoCell(value: p.id),
-              // 'serial_id': PlutoCell(value: p.serialId),
-              'code': PlutoCell(value: p.code),
-              'name': PlutoCell(value: p.name),
-              'price': PlutoCell(value: p.price),
-              'oldPrice': PlutoCell(value: p.oldPrice),
-              'image': PlutoCell(value: p.imageUrls),
-              'countInStock': PlutoCell(value: p.countInStock),
-              'stockStatus': PlutoCell(value: ''),
-              'rating': PlutoCell(value: p.rating),
-              'actions': PlutoCell(value: ''),
-              'createdAt_field': PlutoCell(
-                value: DateFormat(
-                  'E, dd/MM/yyyy, HH:mm',
-                ).format(p.createdAt!.toLocal()),
-              ),
-              'updatedAt_field': PlutoCell(
-                value: p.updatedAt != null
-                    ? DateFormat(
-                        'E, dd/MM/yyyy, HH:mm',
-                      ).format(p.updatedAt!.toLocal())
-                    : 'Never',
-              ),
-            },
-          ),
-        )
-        .toList();
-  }
-
-  double _getColumnWidth(BuildContext context, String columnType) {
-    return R.w(
-      context,
-      R.responsive<double>(
-        context,
-        mobile: _getMobileWidth(columnType),
-        tablet: _getTabletWidth(columnType),
-        desktop: _getDesktopWidth(columnType),
-      ),
-    );
-  }
-
-  double _getMobileWidth(String type) {
-    switch (type) {
-      case 'id':
-        return 80;
-      case 'name':
-        return 250;
-      case 'price':
-        return 100;
-      case 'qty':
-        return 60;
-      case 'status':
-        return 110;
-      case 'actions':
-        return 100;
-      default:
-        return 100;
-    }
-  }
-
-  double _getDesktopWidth(String type) {
-    switch (type) {
-      case 'id':
-        return 70;
-      case 'name':
-        return 160;
-      case 'price':
-        return 160;
-      case 'oldPrice':
-        return 140;
-      case 'qty':
-        return 80;
-      case 'status':
-        return 150;
-      case 'rating':
-        return 90;
-      case 'actions':
-        return 120;
-      case 'createdAt':
-        return 190;
-      case 'updatedAt':
-        return 190;
-      default:
-        return 130;
-    }
-  }
-
-  double _getTabletWidth(String type) {
-    switch (type) {
-      case 'id':
-        return 80;
-      case 'name':
-        return 230;
-      case 'price':
-        return 140;
-      case 'oldPrice':
-        return 140;
-      case 'qty':
-        return 80;
-      case 'status':
-        return 150;
-      case 'rating':
-        return 90;
-      case 'actions':
-        return 120;
-      case 'createdAt':
-        return 190;
-      case 'updatedAt':
-        return 190;
-      default:
-        return 130;
-    }
   }
 }

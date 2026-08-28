@@ -1,8 +1,9 @@
 import 'package:e_commerce/core/constants/colors.dart';
+import 'package:e_commerce/data/providers/category_provider.dart';
 import 'package:e_commerce/features/home/widgets/home_bottom.dart';
-import 'package:e_commerce/features/home/widgets/home_content.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -13,22 +14,32 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      context.read<CategoryProvider>().fetchCategories();
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+
     SystemChrome.setSystemUIOverlayStyle(
-      const SystemUiOverlayStyle(
+      SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
-        systemNavigationBarColor: AppColors.background,
-        systemNavigationBarIconBrightness: Brightness.dark,
-        statusBarIconBrightness: Brightness.dark,
+        systemNavigationBarColor: isDark
+            ? AppColors.darkBackground
+            : AppColors.background,
+        systemNavigationBarIconBrightness: isDark
+            ? Brightness.light
+            : Brightness.dark,
+        statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
       ),
     );
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
 
-    return Scaffold(
-      extendBody: true,
-      backgroundColor: Colors.white,
-      body: SafeArea(child: HomeContent()),
-      bottomNavigationBar: HomeBottom(),
-    );
+    return const HomeBottom();
   }
 }

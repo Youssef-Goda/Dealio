@@ -1,3 +1,5 @@
+import 'package:e_commerce/data/models/category_model.dart';
+
 class Product {
   final String id;
   final int serialId;
@@ -12,6 +14,11 @@ class Product {
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
+  // ── New fields ──────────────────────────────────────────────────────────────
+  final String? categoryId;
+  final CategoryModel? category;
+  final Map<String, dynamic> attributes;
+
   const Product({
     required this.id,
     required this.serialId,
@@ -25,6 +32,9 @@ class Product {
     required this.countInStock,
     this.createdAt,
     this.updatedAt,
+    this.categoryId,
+    this.category,
+    this.attributes = const {},
   });
 
   factory Product.fromJson(Map<String, dynamic> json) {
@@ -48,6 +58,13 @@ class Product {
       return [];
     }
 
+    Map<String, dynamic> parseAttributes() {
+      final raw = json['attributes'];
+      if (raw == null) return {};
+      if (raw is Map<String, dynamic>) return raw;
+      return {};
+    }
+
     return Product(
       id: json['id']?.toString() ?? '',
       serialId:
@@ -68,6 +85,11 @@ class Product {
       updatedAt: json.containsKey('updatedAt') || json.containsKey('updated_at')
           ? DateTime.tryParse(getValue(['updatedAt', 'updated_at']).toString())
           : null,
+      categoryId: json['categoryId']?.toString(),
+      category: json['category'] != null
+          ? CategoryModel.fromJson(json['category'] as Map<String, dynamic>)
+          : null,
+      attributes: parseAttributes(),
     );
   }
 }

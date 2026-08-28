@@ -2,6 +2,8 @@ allprojects {
     repositories {
         google()
         mavenCentral()
+        maven("https://jitpack.io")
+        maven("https://raw.githubusercontent.com/motazyusuf/paymob-android-repo/main/")
     }
 }
 

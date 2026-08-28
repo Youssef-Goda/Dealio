@@ -1,0 +1,186 @@
+import 'dart:convert';
+
+import 'package:e_commerce/core/constants/base_url.dart';
+import 'package:e_commerce/data/models/order_model.dart';
+import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
+
+class OrdersProvider with ChangeNotifier {
+  // ─────────────────────────── State ───────────────────────────
+  List<Order> _orders = [];
+  bool _isLoading = false;
+  String? _error;
+
+  List<Order> get orders => _orders;
+  bool get isLoading => _isLoading;
+  String? get error => _error;
+
+  void _setLoading(bool v) {
+    _isLoading = v;
+    notifyListeners();
+  }
+
+  // ─────────────────────── Auth helpers ────────────────────────
+  Future<String?> _getToken() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    // 1️⃣ Primary key — written by _saveUserSession() on every login/restart
+    final direct = prefs.getString('accessToken');
+    if (direct != null && direct.isNotEmpty) return direct;
+
+    // 2️⃣ Fallback: extract from the 'userData' blob in case the primary key
+    //    wasn't re-pinned yet (e.g. race condition on first cold start after
+    //    the auth_provider fix lands).
+    try {
+      final raw = prefs.getString('userData');
+      if (raw != null) {
+        final map = jsonDecode(raw) as Map<String, dynamic>;
+        // Handle both flat and nested { data: { accessToken, user: {} } }
+        final dataMap = (map['data'] as Map<String, dynamic>?) ?? map;
+        final userMap =
+            (dataMap['user'] as Map<String, dynamic>?) ?? dataMap;
+        final fallback =
+            dataMap['accessToken']?.toString() ??
+            userMap['accessToken']?.toString();
+        if (fallback != null && fallback.isNotEmpty) {
+          debugPrint(
+            '⚠️ [OrdersProvider] accessToken key was missing — '
+            'recovered from userData blob. Auth provider will re-pin it.',
+          );
+          // Re-pin so the next call hits path 1️⃣
+          await prefs.setString('accessToken', fallback);
+          return fallback;
+        }
+      }
+    } catch (e) {
+      debugPrint('⚠️ [OrdersProvider] userData fallback parse error: $e');
+    }
+
+    debugPrint('❌ [OrdersProvider] No token found in SharedPrefs at all.');
+    return null;
+  }
+
+  Map<String, String> _authHeaders(String token) => {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Authorization': 'Bearer $token',
+      };
+
+  // ─────────────────────────── fetchOrders ─────────────────────
+  /// GET /api/orders — authenticated via JWT in SharedPreferences.
+  /// No direct Supabase calls.
+  Future<void> fetchOrders() async {
+    _setLoading(true);
+    _error = null;
+    try {
+      final token = await _getToken();
+      if (token == null) {
+        _error = 'You are not logged in.';
+        debugPrint('❌ [OrdersProvider] fetchOrders → no token');
+        return;
+      }
+
+      final response = await http.get(
+        Uri.parse('${AppConstants.baseUrl}/orders'),
+        headers: _authHeaders(token),
+      );
+
+      debugPrint(
+        '📡 [OrdersProvider] GET /orders → ${response.statusCode}',
+      );
+
+      if (response.statusCode == 200) {
+        final body = jsonDecode(response.body) as Map<String, dynamic>;
+        final raw = body['data'] as List<dynamic>? ?? [];
+        _orders = raw
+            .map((e) => Order.fromJson(e as Map<String, dynamic>))
+            .toList();
+        debugPrint(
+          '✅ [OrdersProvider] fetchOrders → ${_orders.length} orders',
+        );
+      } else {
+        final body = _tryDecode(response.body);
+        _error =
+            body?['message']?.toString() ??
+            'Failed to load orders (${response.statusCode})';
+        debugPrint('❌ [OrdersProvider] fetchOrders error: $_error');
+      }
+    } catch (e) {
+      _error = 'Network error: $e';
+      debugPrint('❌ [OrdersProvider] fetchOrders exception: $e');
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  // ────────────────────── prependOrder ─────────────────────────
+  /// Called right after placeOrder() to immediately surface the new order.
+  void prependOrder(Order order) {
+    _orders.insert(0, order);
+    notifyListeners();
+  }
+
+  // ────────────────────── cancelOrder ─────────────────────────
+  /// Calls POST /api/orders/:id/cancel on the backend.
+  /// Updates the local order in the state list.
+  Future<void> cancelOrder(String orderId) async {
+    _setLoading(true);
+    _error = null;
+    try {
+      final token = await _getToken();
+      if (token == null) {
+        throw Exception('You are not logged in.');
+      }
+
+      final response = await http.post(
+        Uri.parse('${AppConstants.baseUrl}/orders/$orderId/cancel'),
+        headers: _authHeaders(token),
+      );
+
+      debugPrint(
+        '📡 [OrdersProvider] POST /orders/$orderId/cancel → ${response.statusCode}',
+      );
+
+      if (response.statusCode == 200) {
+        final body = jsonDecode(response.body) as Map<String, dynamic>;
+        final orderData = body['data'] as Map<String, dynamic>;
+        final updatedOrder = Order.fromJson(orderData);
+
+        // Update local state list
+        final idx = _orders.indexWhere((o) => o.id == orderId);
+        if (idx != -1) {
+          _orders[idx] = updatedOrder;
+          notifyListeners();
+        }
+        debugPrint('✅ [OrdersProvider] cancelOrder success for $orderId');
+      } else {
+        final body = _tryDecode(response.body);
+        final msg = body?['message']?.toString() ??
+            'Failed to cancel order (${response.statusCode})';
+        throw Exception(msg);
+      }
+    } catch (e) {
+      _error = e.toString();
+      debugPrint('❌ [OrdersProvider] cancelOrder exception: $e');
+      rethrow;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  void clearOrders() {
+    _orders = [];
+    _error = null;
+    notifyListeners();
+  }
+
+  // ─────────────────────── Helpers ─────────────────────────────
+  static Map<String, dynamic>? _tryDecode(String body) {
+    try {
+      final decoded = jsonDecode(body);
+      if (decoded is Map<String, dynamic>) return decoded;
+    } catch (_) {}
+    return null;
+  }
+}

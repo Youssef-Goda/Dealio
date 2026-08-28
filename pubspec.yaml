@@ -1,5 +1,5 @@
-name: e_commerce
-description: "A new Flutter project."
+name: Dealio
+description: "e-commwerce project"
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.1.0+5
+version: 1.2.0+2
 
 environment:
   sdk: ^3.8.1
@@ -56,10 +56,22 @@ dependencies:
   pluto_grid: ^8.1.0
   sidebarx: ^0.17.2
   intl: ^0.20.2
-  lucide_icons: ^0.257.0
+  # lucide_icons: ^0.257.0
   supabase_flutter: ^2.12.0
   url_launcher: ^6.3.2
-  # desktop_drop: ^0.7.0
+  lucide_icons: ^0.257.0
+  lucide_icons_flutter: ^3.1.10
+  intl_phone_field: ^3.2.0
+  shimmer: ^3.0.0
+  firebase_core: ^4.8.0
+  firebase_messaging: ^16.2.1
+  flutter_local_notifications: ^18.0.1
+  universal_html: ^2.3.0
+  geolocator: ^14.0.0
+  flutter_map: ^8.3.1
+  latlong2: ^0.10.1
+  flutter_paymob_sdk: ^1.0.1
+  package_info_plus: ^9.0.1
 
 
 dev_dependencies:
@@ -95,7 +107,14 @@ flutter:
     - assets/animations/dealio_loading.json
     - assets/animations/dealio_loading_js.json
     - assets/images/google_icon.svg
-    - .env
+    - assets/env.json
+    - assets/images/kernel_logo_black.svg
+    - assets/images/kernel_logo_white.svg
+    - assets/images/kernel_logo_black_2.png
+    - assets/images/kernel_logo_white_2.png
+    - assets/images/kernel_white_safe.png
+    - assets/images/kernel_final_splash.png
+    - assets/images/white_brand.png
   #   - images/a_dot_ham.jpeg
 
 flutter_native_splash:
@@ -107,11 +126,8 @@ flutter_native_splash:
     color: "#FFD700"
     # android_12_gravity: center
 
-
-
   android: true
   android_gravity: center 
-  
   
   ios: true
   ios_content_mode: center 
