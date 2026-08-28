@@ -37,8 +37,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   // ───────────────────── placeOrder / Paymob Flow ──────────────
   Future<void> _handlePlaceOrder() async {
     final checkout = context.read<CheckoutProvider>();
-    final cart     = context.read<CartProvider>();
-    final auth     = context.read<AuthProvider>();
+    final cart = context.read<CartProvider>();
+    final auth = context.read<AuthProvider>();
 
     if (checkout.selectedAddress == null) {
       _showError('Please select a delivery address.');
@@ -51,11 +51,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     try {
       // ── Step 1: Create the order (stays 'pending' until payment confirmed) ──
       final order = await checkout.placeOrder(
-        userId:    auth.userId,
+        userId: auth.userId,
         cartItems: cart.items,
-        subtotal:  cart.subtotal,
-        tax:       cart.tax,
-        total:     cart.total,
+        subtotal: cart.subtotal,
+        tax: cart.tax,
+        total: cart.total,
       );
 
       // ── Cash on Delivery: no Paymob needed ───────────────────────────
@@ -63,7 +63,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         if (!mounted) return;
         context.read<OrdersProvider>().prependOrder(order);
         cart.clearLocalCart();
-        Navigator.of(context).pushReplacementNamed('/order-success', arguments: order);
+        Navigator.of(
+          context,
+        ).pushReplacementNamed('/order-success', arguments: order);
         return;
       }
 
@@ -75,16 +77,17 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           final profilePhone = context.read<ProfileProvider>().phoneNumber;
           if (profilePhone.isNotEmpty) userWalletPhone = profilePhone;
         } catch (_) {}
-        if ((userWalletPhone == null || userWalletPhone.isEmpty) && checkout.selectedAddress != null) {
+        if ((userWalletPhone == null || userWalletPhone.isEmpty) &&
+            checkout.selectedAddress != null) {
           userWalletPhone = checkout.selectedAddress!.phone;
         }
       }
 
       final result = await checkout.initiatePaymobPayment(
-        orderId:       order.id,
+        orderId: order.id,
         paymentMethod: checkout.paymentMethod,
-        amount:        cart.total,
-        walletNumber:  userWalletPhone,
+        amount: cart.total,
+        walletNumber: userWalletPhone,
       );
 
       if (!mounted) return;
@@ -94,7 +97,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       // ── Cash / Fawry: show bill reference modal ─────────────────────
       if (paymentType == 'cash') {
         // Provider now returns 'reference_number' and 'expire_date'
-        final ref     = result['reference_number'] as String? ?? '';
+        final ref = result['reference_number'] as String? ?? '';
         final expires = result['expire_date'] as String? ?? '';
 
         if (ref.isEmpty) {
@@ -105,12 +108,14 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         await FawryCashModal.show(
           context,
           billReference: ref,
-          expiresAt:     expires,
-          amount:        cart.total,
+          expiresAt: expires,
+          amount: cart.total,
           onDone: () {
             context.read<OrdersProvider>().prependOrder(order);
             cart.clearLocalCart();
-            Navigator.of(context).pushReplacementNamed('/order-success', arguments: order);
+            Navigator.of(
+              context,
+            ).pushReplacementNamed('/order-success', arguments: order);
           },
         );
         return;
@@ -133,16 +138,18 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       //         ? 'https://accept.paymob.com/unifiedcheckout/?publicKey=${Uri.encodeComponent(publicKey)}&clientSecret=${Uri.encodeComponent(clientSecret)}'
       //         : null);
 
-
       // --- التعديل هنا: تحديد الدومين ديناميكياً ---
       final isTestKey = publicKey.toLowerCase().contains('test');
-      final domain = isTestKey ? 'accept.paymobsolutions.com' : 'accept.paymob.com';
+      final domain = isTestKey
+          ? 'accept.paymobsolutions.com'
+          : 'accept.paymob.com';
 
-      final unifiedCheckoutUrl = (result['payment_url'] as String?)?.isNotEmpty == true
+      final unifiedCheckoutUrl =
+          (result['payment_url'] as String?)?.isNotEmpty == true
           ? result['payment_url'] as String
           : (publicKey.isNotEmpty
-              ? 'https://$domain/unifiedcheckout/?publicKey=${Uri.encodeComponent(publicKey)}&clientSecret=${Uri.encodeComponent(clientSecret)}'
-              : null);
+                ? 'https://$domain/unifiedcheckout/?publicKey=${Uri.encodeComponent(publicKey)}&clientSecret=${Uri.encodeComponent(clientSecret)}'
+                : null);
       // ----------------------------------------------
 
       try {
@@ -157,18 +164,35 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         if (paymentResult.status == PaymentStatus.successful) {
           context.read<OrdersProvider>().prependOrder(order);
           cart.clearLocalCart();
-          Navigator.of(context).pushReplacementNamed('/order-success', arguments: order);
+          Navigator.of(
+            context,
+          ).pushReplacementNamed('/order-success', arguments: order);
         } else if (paymentResult.status == PaymentStatus.unknown &&
-            (paymentResult.errorMessage?.contains('MissingPluginException') == true ||
-             paymentResult.errorMessage?.contains('NotImplemented') == true) &&
+            (paymentResult.errorMessage?.contains('MissingPluginException') ==
+                    true ||
+                paymentResult.errorMessage?.contains('NotImplemented') ==
+                    true) &&
             unifiedCheckoutUrl != null) {
-          // Fallback to Unified Checkout URL ONLY for unsupported platforms (e.g. Web, Windows)
+          // // Fallback to Unified Checkout URL ONLY for unsupported platforms (e.g. Web, Windows)
+          // final uri = Uri.parse(unifiedCheckoutUrl);
+          // if (await canLaunchUrl(uri)) {
+          //   await launchUrl(
+          //     uri,
+          //     mode: LaunchMode.externalApplication,
+          //     webOnlyWindowName: '_self',
+          //   );
+          // } else {
+          //   _showError('Could not open Paymob checkout page.');
+          // }
+          // Fallback to Unified Checkout URL via In-App WebView
           final uri = Uri.parse(unifiedCheckoutUrl);
           if (await canLaunchUrl(uri)) {
             await launchUrl(
               uri,
-              mode: LaunchMode.externalApplication,
-              webOnlyWindowName: '_self',
+              mode: LaunchMode.inAppWebView,
+              webViewConfiguration: const WebViewConfiguration(
+                enableJavaScript: true,
+              ),
             );
           } else {
             _showError('Could not open Paymob checkout page.');
@@ -182,13 +206,29 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         }
       } catch (e) {
         final errorStr = e.toString();
-        if ((errorStr.contains('MissingPluginException') || errorStr.contains('Unsupported operation')) && unifiedCheckoutUrl != null) {
+        // if ((errorStr.contains('MissingPluginException') || errorStr.contains('Unsupported operation')) && unifiedCheckoutUrl != null) {
+        //   final uri = Uri.parse(unifiedCheckoutUrl);
+        //   if (await canLaunchUrl(uri)) {
+        //     await launchUrl(
+        //       uri,
+        //       mode: LaunchMode.externalApplication,
+        //       webOnlyWindowName: '_self',
+        //     );
+        //     return;
+        //   }
+        // }
+
+        if ((errorStr.contains('MissingPluginException') ||
+                errorStr.contains('Unsupported operation')) &&
+            unifiedCheckoutUrl != null) {
           final uri = Uri.parse(unifiedCheckoutUrl);
           if (await canLaunchUrl(uri)) {
             await launchUrl(
               uri,
-              mode: LaunchMode.externalApplication,
-              webOnlyWindowName: '_self',
+              mode: LaunchMode.inAppWebView,
+              webViewConfiguration: const WebViewConfiguration(
+                enableJavaScript: true,
+              ),
             );
             return;
           }
