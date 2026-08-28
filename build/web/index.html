@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base href="/">
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge">
+  <meta name="description" content="Dealio - Your Ultimate E-Commerce Experience.">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Dealio">
+
+  <link rel="icon" type="image/png" href="favicon.png">
+  <title>Dealio</title>
+
+  <style>
+    :root {
+      /* إعدادات الثيم (خلفية غامقة وكلام أبيض) */
+      --bg-color: #121212;   /* أسود شيك */
+      --text-color: #ffffff; /* أبيض صريح */
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: var(--bg-color);
+      font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      overflow: hidden;
+    }
+
+    .loading-container {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 9999;
+      background-color: var(--bg-color);
+      transition: opacity 0.6s ease-in-out, visibility 0.6s;
+    }
+
+    .loading-text {
+      font-size: clamp(26px, 6vw, 48px);
+      font-weight: 800;
+      letter-spacing: 3px;
+      color: var(--text-color);
+      display: flex;
+      align-items: center;
+      text-transform: uppercase;
+      user-select: none;
+    }
+
+    .logo-img {
+      height: 0.73em;
+      margin: 0 4px;
+      display: inline-block;
+      vertical-align: middle;
+      filter: brightness(0) invert(1);
+    }
+
+    /* انيميشن النقط الثلاثة */
+    .dots::after {
+      content: '';
+      display: inline-block;
+      width: 1.5em;
+      text-align: left;
+      animation: dot-steps 1.8s infinite steps(4);
+    }
+
+    @keyframes dot-steps {
+      0%   { content: ''; }
+      25%  { content: '.'; }
+      50%  { content: '..'; }
+      75%  { content: '...'; }
+      100% { content: ''; }
+    }
+
+    .hidden {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="loading-indicator" class="loading-container">
+    <div class="loading-text">
+      LOA
+      <img src="assets/assets/images/dealio_logo.svg" alt="D" class="logo-img">
+      ING<span class="dots"></span>
+    </div>
+  </div>
+
+  <script src="flutter_bootstrap.js" async></script>
+
+  <script>
+    // Fade-out لما فلاتر يجهز
+    window.addEventListener("flutter-first-frame", function() {
+      const loader = document.getElementById("loading-indicator");
+      if (loader) {
+        loader.classList.add("hidden");
+        setTimeout(() => loader.remove(), 600);
+      }
+    });
+
+    // Fallback لضمان عدم تعليق الشاشة
+    setTimeout(() => {
+      const loader = document.getElementById("loading-indicator");
+      if (loader && !loader.classList.contains("hidden")) {
+        loader.classList.add("hidden");
+      }
+    }, 7000);
+  </script>
+
+</body>
+</html>
