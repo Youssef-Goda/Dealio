@@ -381,43 +381,110 @@ Future<void> updateUserData(Map<String, dynamic> updatedFields) async {
 //   }
 
 // ── وتأكد إن loadUserData بقت كدة (الترتيب بيفرق) ────────────────────────
-  Future<void> loadUserData() async {
-    debugPrint('🔄 [Auth] loadUserData START');
-    final prefs = await SharedPreferences.getInstance();
+  // Future<void> loadUserData() async {
+  //   debugPrint('🔄 [Auth] loadUserData START');
+  //   final prefs = await SharedPreferences.getInstance();
 
-    final String? raw = prefs.getString('userData');
-    // بنخلي الـ Default هو فحص الـ raw data نفسها مش بس الـ bool
-    final bool wasLoggedIn = prefs.getBool('isLoggedIn') ?? (raw != null);
+  //   final String? raw = prefs.getString('userData');
+  //   // بنخلي الـ Default هو فحص الـ raw data نفسها مش بس الـ bool
+  //   final bool wasLoggedIn = prefs.getBool('isLoggedIn') ?? (raw != null);
 
-    if (raw != null && wasLoggedIn) {
-      try {
-        final decoded = jsonDecode(raw);
-        if (decoded is Map<String, dynamic> && decoded.containsKey('accessToken')) {
-          _userData = decoded;
-          _isLoggedIn = true;
-          debugPrint('✅ [Auth] Restored Session for: ${decoded['firstName']}');
-        } else {
-          _isLoggedIn = false;
-        }
-      } catch (e) {
-        debugPrint('❌ [Auth] Corrupt session: $e');
-        _isLoggedIn = false;
+  //   if (raw != null && wasLoggedIn) {
+  //     try {
+  //       final decoded = jsonDecode(raw);
+  //       if (decoded is Map<String, dynamic> && decoded.containsKey('accessToken')) {
+  //         _userData = decoded;
+  //         _isLoggedIn = true;
+  //         debugPrint('✅ [Auth] Restored Session for: ${decoded['firstName']}');
+  //       } else {
+  //         _isLoggedIn = false;
+  //       }
+  //     } catch (e) {
+  //       debugPrint('❌ [Auth] Corrupt session: $e');
+  //       _isLoggedIn = false;
+  //     }
+  //   } else {
+  //     _isLoggedIn = false;
+  //   }
+
+  //   // الإشارة للـ UI إننا خلصنا "بعد" ما حددنا الـ isLoggedIn بالظبط
+  //   _isInitialized = true;
+  //   notifyListeners();
+
+  //   if (_isLoggedIn && token != null) {
+  //     _syncProfileFromServer(token!);
+  //   }
+  //   debugPrint('🏁 [Auth] loadUserData END — isLoggedIn: $_isLoggedIn');
+  // }
+
+Future<void> loadUserData() async {
+  debugPrint('🔄 [Auth] loadUserData START');
+
+  final prefs = await SharedPreferences.getInstance();
+
+  try {
+    final raw = prefs.getString('userData');
+    final storedAccessToken = prefs.getString('accessToken')?.trim();
+    final storedRefreshToken = prefs.getString('refreshToken')?.trim();
+
+    Map<String, dynamic>? decoded;
+
+    if (raw != null && raw.isNotEmpty) {
+      final value = jsonDecode(raw);
+      if (value is Map<String, dynamic>) {
+        decoded = Map<String, dynamic>.from(value);
       }
+    }
+
+    final accessToken =
+        (storedAccessToken != null && storedAccessToken.isNotEmpty)
+            ? storedAccessToken
+            : decoded?['accessToken']?.toString().trim();
+
+    if (decoded != null &&
+        accessToken != null &&
+        accessToken.isNotEmpty) {
+      _userData = {
+        ...decoded,
+        'accessToken': accessToken,
+        if (storedRefreshToken != null &&
+            storedRefreshToken.isNotEmpty)
+          'refreshToken': storedRefreshToken,
+      };
+
+      _isLoggedIn = true;
+
+      debugPrint(
+        '✅ [Auth] Restored session from persistent storage '
+        '(token present)',
+      );
     } else {
+      _userData = null;
       _isLoggedIn = false;
+      debugPrint('ℹ️ [Auth] No persisted session found');
     }
+  } catch (e) {
+    debugPrint('❌ [Auth] Session restore error: $e');
 
-    // الإشارة للـ UI إننا خلصنا "بعد" ما حددنا الـ isLoggedIn بالظبط
-    _isInitialized = true;
-    notifyListeners();
-
-    if (_isLoggedIn && token != null) {
-      _syncProfileFromServer(token!);
-    }
-    debugPrint('🏁 [Auth] loadUserData END — isLoggedIn: $_isLoggedIn');
+    // Do NOT clear SharedPreferences here.
+    // A parsing/network/startup issue must not silently log the user out.
+    _isLoggedIn = false;
   }
 
+  _isInitialized = true;
+  notifyListeners();
 
+  if (_isLoggedIn) {
+    final t = token;
+    if (t != null && t.isNotEmpty) {
+      _syncProfileFromServer(t);
+    }
+  }
+
+  debugPrint(
+    '🏁 [Auth] loadUserData END — isLoggedIn: $_isLoggedIn',
+  );
+}
 
 
   // ══════════════════════════════════════════════════════════════════════════

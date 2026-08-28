@@ -95,14 +95,25 @@ void main() async {
   // Restore session immediately if Supabase has one
   try {
     final initialSession = Supabase.instance.client.auth.currentSession;
-    if (initialSession != null) {
-      await authProvider.handleGoogleSuccess(initialSession);
-      debugPrint(
-        '⚡ Startup: Session restored for ${initialSession.user.email}',
-      );
-    } else {
-      await authProvider.loadUserData();
+
+    await authProvider.loadUserData();
+
+    if (!authProvider.isLoggedIn) {
+      final initialSession = Supabase.instance.client.auth.currentSession;
+
+      if (initialSession != null) {
+        await authProvider.handleGoogleSuccess(initialSession);
+      }
     }
+
+    // if (initialSession != null) {
+    //   await authProvider.handleGoogleSuccess(initialSession);
+    //   debugPrint(
+    //     '⚡ Startup: Session restored for ${initialSession.user.email}',
+    //   );
+    // } else {
+    //   await authProvider.loadUserData();
+    // }
   } catch (e) {
     debugPrint(
       '⚠️ Initial auth session restore error (ignoring non-auth deep link query params): $e',
@@ -290,14 +301,12 @@ class MyApp extends StatelessWidget {
                 '/order-success': (context) => const OrderSuccessScreen(),
                 '/my-orders': (context) => const MyOrdersScreen(),
                 '/order-detail': (context) => const OrderDetailScreen(),
-                '/location-onboarding': (context) => const LocationOnboardingScreen(),
+                '/location-onboarding': (context) =>
+                    const LocationOnboardingScreen(),
               }[name];
 
               if (builder != null) {
-                return MaterialPageRoute(
-                  builder: builder,
-                  settings: settings,
-                );
+                return MaterialPageRoute(builder: builder, settings: settings);
               }
               return null;
             },
