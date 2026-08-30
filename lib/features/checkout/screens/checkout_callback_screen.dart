@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:provider/provider.dart';
+import 'package:universal_html/html.dart' as html;
 import 'package:url_launcher/url_launcher.dart';
 
 // ── Payment Launch Function ──────────────────────────────────────────────────
@@ -14,21 +15,23 @@ Future<void> launchPaymobPayment({
   required BuildContext context,
   required String paymentUrl,
 }) async {
-  final uri = Uri.parse(paymentUrl);
-  if (await canLaunchUrl(uri)) {
-    await launchUrl(
-      uri,
-      mode: kIsWeb ? LaunchMode.platformDefault : LaunchMode.inAppWebView,
-      webOnlyWindowName: '_self',
-    );
+  if (kIsWeb) {
+    // 🟢 للويب: تحويل مباشر ورسمي في نفس التاب بدون أي اجتهاد من المتصفح
+    html.window.location.href = paymentUrl;
   } else {
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Could not launch payment URL.'),
-          backgroundColor: AppColors.errorRed,
-        ),
-      );
+    // 📱 للموبايل: فتح جوه الـ App WebView
+    final uri = Uri.parse(paymentUrl);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.inAppWebView);
+    } else {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not launch payment URL.'),
+            backgroundColor: AppColors.errorRed,
+          ),
+        );
+      }
     }
   }
 }
