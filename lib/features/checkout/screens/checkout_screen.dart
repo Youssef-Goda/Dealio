@@ -146,6 +146,15 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 : null);
       // ----------------------------------------------
 
+      if (kIsWeb) {
+        if (unifiedCheckoutUrl != null) {
+          html.window.location.assign(unifiedCheckoutUrl);
+        } else {
+          _showError('Could not get checkout URL for web.');
+        }
+        return;
+      }
+
       try {
         final paymobService = PaymobService();
         final paymentResult = await paymobService.payWithPaymob(
@@ -180,22 +189,18 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           // else {
           //   _showError('Could not open Paymob checkout page.');
           // }
-          if (kIsWeb) {
-            html.window.location.href = unifiedCheckoutUrl;
+          final uri = Uri.parse(unifiedCheckoutUrl);
+          if (await canLaunchUrl(uri)) {
+            await launchUrl(
+              uri,
+              mode: LaunchMode.inAppWebView,
+              webOnlyWindowName: '_self', // تأكيد إضافي
+              webViewConfiguration: const WebViewConfiguration(
+                enableJavaScript: true,
+              ),
+            );
           } else {
-            final uri = Uri.parse(unifiedCheckoutUrl);
-            if (await canLaunchUrl(uri)) {
-              await launchUrl(
-                uri,
-                mode: LaunchMode.inAppWebView,
-                webOnlyWindowName: '_self', // تأكيد إضافي
-                webViewConfiguration: const WebViewConfiguration(
-                  enableJavaScript: true,
-                ),
-              );
-            } else {
-              _showError('Could not open Paymob checkout page.');
-            }
+            _showError('Could not open Paymob checkout page.');
           }
         } else {
           _showError(
@@ -250,11 +255,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         if ((errorStr.contains('MissingPluginException') ||
                 errorStr.contains('Unsupported operation')) &&
             unifiedCheckoutUrl != null) {
-          if (kIsWeb) {
-            html.window.location.href = unifiedCheckoutUrl;
-            return;
-          }
-
           final uri = Uri.parse(unifiedCheckoutUrl);
           if (await canLaunchUrl(uri)) {
             await launchUrl(
