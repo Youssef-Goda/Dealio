@@ -1,5 +1,5 @@
-import 'package:e_commerce/data/models/order_item_model.dart';
-import 'package:e_commerce/data/models/shipping_address_model.dart';
+import 'package:dealio/data/models/order_item_model.dart';
+import 'package:dealio/data/models/shipping_address_model.dart';
 
 enum OrderStatus { pending, confirmed, processing, shipped, delivered, cancelled }
 

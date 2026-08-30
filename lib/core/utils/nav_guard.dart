@@ -1,34 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:e_commerce/core/constants/app_roles.dart';
-import 'package:e_commerce/data/providers/auth_provider.dart';
+import 'package:dealio/core/constants/app_roles.dart';
+import 'package:dealio/data/providers/auth_provider.dart';
 
-/// NavGuard
-/// ─────────────────────────────────────────────────────────────────────────────
-/// Utility for programmatic navigation with role enforcement.
-///
-/// Use this for pushes triggered by code — deep links, notification taps,
-/// button callbacks — where you cannot wrap the destination in a [GuardedRoute].
-///
-/// ### Usage
-/// ```dart
-/// // Simple push
-/// NavGuard.push(context, route: '/owner-control', allowedRoles: AppRoles.ownerOnly);
-///
-/// // With arguments
-/// NavGuard.push(
-///   context,
-///   route: '/vendor',
-///   allowedRoles: AppRoles.productCreators,
-///   arguments: {'vendorId': vendor.id},
-/// );
-/// ```
 class NavGuard {
   NavGuard._();
-
-  /// Navigates to [route] if the current user's role is in [allowedRoles].
-  ///
-  /// Shows a [SnackBar] and does nothing if the user lacks permission.
   static void push(
     BuildContext context, {
     required String route,

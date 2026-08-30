@@ -1,13 +1,13 @@
-import 'package:e_commerce/core/utils/responsive_helper.dart';
-import 'package:e_commerce/data/models/product_model.dart';
-import 'package:e_commerce/data/providers/category_provider.dart';
-import 'package:e_commerce/data/providers/product_provider.dart';
-import 'package:e_commerce/data/providers/settings_provider.dart';
-import 'package:e_commerce/features/home/widgets/categories_list.dart';
-import 'package:e_commerce/features/home/widgets/home_banner.dart';
-import 'package:e_commerce/features/home/widgets/home_header.dart';
-import 'package:e_commerce/features/products/screens/product_details_page.dart';
-import 'package:e_commerce/features/products/widgets/product_card.dart';
+import 'package:dealio/core/utils/responsive_helper.dart';
+import 'package:dealio/data/models/product_model.dart';
+import 'package:dealio/data/providers/category_provider.dart';
+import 'package:dealio/data/providers/product_provider.dart';
+import 'package:dealio/data/providers/settings_provider.dart';
+import 'package:dealio/features/home/widgets/categories_list.dart';
+import 'package:dealio/features/home/widgets/home_banner.dart';
+import 'package:dealio/features/home/widgets/home_header.dart';
+import 'package:dealio/features/products/screens/product_details_page.dart';
+import 'package:dealio/features/products/widgets/product_card.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 

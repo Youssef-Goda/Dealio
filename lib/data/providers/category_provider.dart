@@ -1,8 +1,8 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:e_commerce/core/constants/base_url.dart';
-import 'package:e_commerce/data/models/category_model.dart';
+import 'package:dealio/core/constants/base_url.dart';
+import 'package:dealio/data/models/category_model.dart';
 
 class CategoryProvider with ChangeNotifier {
   List<CategoryModel> _categories = [];

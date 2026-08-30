@@ -1,4 +1,4 @@
-import 'package:e_commerce/data/models/category_model.dart';
+import 'package:dealio/data/models/category_model.dart';
 
 class Product {
   final String id;

@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
-import 'package:e_commerce/data/models/store_settings_model.dart';
-import 'package:e_commerce/data/services/api_service.dart';
+import 'package:dealio/data/models/store_settings_model.dart';
+import 'package:dealio/data/services/api_service.dart';
 
 class StoreSettingsProvider extends ChangeNotifier {
   StoreSettings _settings = StoreSettings(isBannerEnabled: true);

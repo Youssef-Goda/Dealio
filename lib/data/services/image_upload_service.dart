@@ -4,7 +4,7 @@ import 'dart:io';
 
 import 'package:http/http.dart' as http;
 
-import 'package:e_commerce/core/constants/base_url.dart';
+import 'package:dealio/core/constants/base_url.dart';
 
 // ── Result types ──────────────────────────────────────────────────────────────
 

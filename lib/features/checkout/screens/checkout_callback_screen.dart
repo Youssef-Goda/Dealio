@@ -1,8 +1,8 @@
-import 'package:e_commerce/core/constants/colors.dart';
-import 'package:e_commerce/data/models/order_model.dart';
-import 'package:e_commerce/data/providers/cart_provider.dart';
-import 'package:e_commerce/data/providers/checkout_provider.dart';
-import 'package:e_commerce/data/services/api_service.dart';
+import 'package:dealio/core/constants/colors.dart';
+import 'package:dealio/data/models/order_model.dart';
+import 'package:dealio/data/providers/cart_provider.dart';
+import 'package:dealio/data/providers/checkout_provider.dart';
+import 'package:dealio/data/services/api_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -18,16 +18,18 @@ Future<void> launchPaymobPayment({
   if (await canLaunchUrl(uri)) {
     await launchUrl(
       uri,
-      mode: LaunchMode.externalApplication,
+      mode: kIsWeb ? LaunchMode.platformDefault : LaunchMode.inAppWebView,
       webOnlyWindowName: '_self',
     );
   } else {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Could not launch payment URL.'),
-        backgroundColor: AppColors.errorRed,
-      ),
-    );
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not launch payment URL.'),
+          backgroundColor: AppColors.errorRed,
+        ),
+      );
+    }
   }
 }
 
@@ -102,85 +104,58 @@ class _CheckoutCallbackScreenState extends State<CheckoutCallbackScreen>
     super.dispose();
   }
 
+  String? _extractOrderId() {
+    if (kIsWeb) {
+      final uri = Uri.base;
 
-String? _extractOrderId() {
-  if (kIsWeb) {
-    final uri = Uri.base;
+      // 1. Extract order_id or merchant_order_id or id
+      String? id =
+          uri.queryParameters['order_id'] ??
+          uri.queryParameters['merchant_order_id'] ??
+          uri.queryParameters['id'];
 
-    // 1. Extract order_id or merchant_order_id or id
-    String? id = uri.queryParameters['order_id'] ??
-        uri.queryParameters['merchant_order_id'] ??
-        uri.queryParameters['id'];
+      if (id != null && id.isNotEmpty) return id;
 
-    if (id != null && id.isNotEmpty) return id;
-
-    // 2. Hash Fragment check
-    if (uri.hasFragment) {
-      final fragSplit = uri.fragment.split('?');
-      if (fragSplit.length > 1) {
-        final fragQuery = Uri.splitQueryString(fragSplit[1]);
-        id = fragQuery['order_id'] ??
-            fragQuery['merchant_order_id'] ??
-            fragQuery['id'];
-        if (id != null && id.isNotEmpty) return id;
+      // 2. Hash Fragment check
+      if (uri.hasFragment) {
+        final fragSplit = uri.fragment.split('?');
+        if (fragSplit.length > 1) {
+          final fragQuery = Uri.splitQueryString(fragSplit[1]);
+          id =
+              fragQuery['order_id'] ??
+              fragQuery['merchant_order_id'] ??
+              fragQuery['id'];
+          if (id != null && id.isNotEmpty) return id;
+        }
       }
     }
+
+    // Mobile/Arguments fallback
+    final args = ModalRoute.of(context)?.settings.arguments;
+    if (args is String && args.isNotEmpty) return args;
+    if (args is Map) {
+      final id =
+          args['order_id']?.toString() ??
+          args['orderId']?.toString() ??
+          args['id']?.toString();
+      if (id != null && id.isNotEmpty) return id;
+    }
+    return null;
   }
-
-  // Mobile/Arguments fallback
-  final args = ModalRoute.of(context)?.settings.arguments;
-  if (args is String && args.isNotEmpty) return args;
-  if (args is Map) {
-    final id = args['order_id']?.toString() ??
-        args['orderId']?.toString() ??
-        args['id']?.toString();
-    if (id != null && id.isNotEmpty) return id;
-  }
-  return null;
-}
-
-
-  // String? _extractOrderId() {
-  //   if (kIsWeb) {
-  //     final uri = Uri.base;
-  //     String? id = uri.queryParameters['order_id'] ?? uri.queryParameters['id'];
-  //     if (id != null && id.isNotEmpty) return id;
-
-  //     if (uri.hasFragment) {
-  //       final fragSplit = uri.fragment.split('?');
-  //       if (fragSplit.length > 1) {
-  //         final fragQuery = Uri.splitQueryString(fragSplit[1]);
-  //         id = fragQuery['order_id'] ?? fragQuery['id'];
-  //         if (id != null && id.isNotEmpty) return id;
-  //       }
-  //     }
-
-  //     final match = RegExp(r'[?&](?:order_id|id)=([^&]+)').firstMatch(uri.toString());
-  //     if (match != null) {
-  //       id = match.group(1);
-  //       if (id != null && id.isNotEmpty) return id;
-  //     }
-  //   }
-
-  //   final args = ModalRoute.of(context)?.settings.arguments;
-  //   if (args is String && args.isNotEmpty) return args;
-  //   if (args is Map) {
-  //     final id = args['order_id']?.toString() ?? args['orderId']?.toString() ?? args['id']?.toString();
-  //     if (id != null && id.isNotEmpty) return id;
-  //   }
-  //   return null;
-  // }
 
   Future<void> _resolveAndVerify() async {
     final orderId = _extractOrderId();
     if (!mounted) return;
 
     if (orderId == null || orderId.isEmpty) {
-      final isSuccessParam = kIsWeb ? (Uri.base.queryParameters['success'] == 'true') : false;
+      final isSuccessParam = kIsWeb
+          ? (Uri.base.queryParameters['success'] == 'true')
+          : false;
       if (isSuccessParam) {
         setState(() {
           _state = _VerifyState.pending;
-          _errorMessage = 'We are still processing your payment.\n'
+          _errorMessage =
+              'We are still processing your payment.\n'
               'Please check your Orders page in a few minutes.';
         });
       } else {
@@ -211,7 +186,8 @@ String? _extractOrderId() {
       } else if (paymentStatus == 'failed') {
         setState(() {
           _state = _VerifyState.failed;
-          _errorMessage = 'Payment was declined or cancelled. Please try again.';
+          _errorMessage =
+              'Payment was declined or cancelled. Please try again.';
         });
       } else {
         setState(() {
@@ -297,7 +273,9 @@ String? _extractOrderId() {
           style: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.w800,
-            color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimaryDark,
+            color: isDark
+                ? AppColors.darkTextPrimary
+                : AppColors.textPrimaryDark,
           ),
         ),
       ],
@@ -311,20 +289,20 @@ String? _extractOrderId() {
     final Color iconBg = isSuccess
         ? AppColors.successGreen.withValues(alpha: 0.12)
         : isPending
-            ? AppColors.primary.withValues(alpha: 0.12)
-            : AppColors.errorRed.withValues(alpha: 0.12);
+        ? AppColors.primary.withValues(alpha: 0.12)
+        : AppColors.errorRed.withValues(alpha: 0.12);
 
     final Color iconColor = isSuccess
         ? AppColors.successGreen
         : isPending
-            ? AppColors.primary
-            : AppColors.errorRed;
+        ? AppColors.primary
+        : AppColors.errorRed;
 
     final IconData iconData = isSuccess
         ? LucideIcons.circleCheck
         : isPending
-            ? LucideIcons.clock
-            : LucideIcons.circleX;
+        ? LucideIcons.clock
+        : LucideIcons.circleX;
 
     return Column(
       children: [
@@ -339,12 +317,18 @@ String? _extractOrderId() {
         ),
         const SizedBox(height: 28),
         Text(
-          isSuccess ? 'Payment Confirmed! 🎉' : isPending ? 'Verification Pending' : 'Payment Failed',
+          isSuccess
+              ? 'Payment Confirmed! 🎉'
+              : isPending
+              ? 'Verification Pending'
+              : 'Payment Failed',
           textAlign: TextAlign.center,
           style: TextStyle(
             fontSize: 22,
             fontWeight: FontWeight.w900,
-            color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimaryDark,
+            color: isDark
+                ? AppColors.darkTextPrimary
+                : AppColors.textPrimaryDark,
           ),
         ),
         const SizedBox(height: 12),
@@ -353,7 +337,11 @@ String? _extractOrderId() {
               ? 'Your order has been placed successfully.'
               : _errorMessage ?? 'Something went wrong.',
           textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 13, color: AppColors.textMuted, height: 1.6),
+          style: TextStyle(
+            fontSize: 13,
+            color: AppColors.textMuted,
+            height: 1.6,
+          ),
         ),
         const SizedBox(height: 36),
         if (isSuccess)
@@ -363,9 +351,15 @@ String? _extractOrderId() {
             width: double.infinity,
             height: 52,
             child: ElevatedButton(
-              onPressed: () => Navigator.of(context).pushReplacementNamed('/checkout'),
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
-              child: const Text('Try Again', style: TextStyle(color: Colors.white)),
+              onPressed: () =>
+                  Navigator.of(context).pushReplacementNamed('/checkout'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+              ),
+              child: const Text(
+                'Try Again',
+                style: TextStyle(color: Colors.white),
+              ),
             ),
           ),
       ],

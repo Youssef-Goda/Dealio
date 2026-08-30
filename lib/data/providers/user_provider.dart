@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:e_commerce/core/constants/base_url.dart';
+import 'package:dealio/core/constants/base_url.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user_model.dart';
 

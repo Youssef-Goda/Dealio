@@ -1,18 +1,18 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'package:e_commerce/data/providers/cart_provider.dart';
-import 'package:e_commerce/data/services/notification_service.dart';
+import 'package:dealio/data/providers/cart_provider.dart';
+import 'package:dealio/data/services/notification_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:e_commerce/core/constants/base_url.dart';
-import 'package:e_commerce/data/repositories/auth_repository.dart';
-import 'package:e_commerce/data/services/api_service.dart';
+import 'package:dealio/core/constants/base_url.dart';
+import 'package:dealio/data/repositories/auth_repository.dart';
+import 'package:dealio/data/services/api_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:e_commerce/data/providers/profile_provider.dart';
+import 'package:dealio/data/providers/profile_provider.dart';
 
 class AuthProvider with ChangeNotifier {
   // ── State ──────────────────────────────────────────────────────────────────

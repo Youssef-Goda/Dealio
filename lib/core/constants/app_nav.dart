@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
-import 'package:e_commerce/core/constants/app_roles.dart';
+import 'package:dealio/core/constants/app_roles.dart';
 
 /// Describes a single navigation destination.
 ///

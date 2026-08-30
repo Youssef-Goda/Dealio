@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:e_commerce/core/constants/app_roles.dart';
-import 'package:e_commerce/data/providers/auth_provider.dart';
+import 'package:dealio/core/constants/app_roles.dart';
+import 'package:dealio/data/providers/auth_provider.dart';
 
 /// PermissionGuard
 /// ─────────────────────────────────────────────────────────────────────────────

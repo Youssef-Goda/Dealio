@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:e_commerce/core/constants/app_roles.dart';
-import 'package:e_commerce/core/constants/colors.dart';
-import 'package:e_commerce/core/widgets/permission_guard.dart';
+import 'package:dealio/core/constants/app_roles.dart';
+import 'package:dealio/core/constants/colors.dart';
+import 'package:dealio/core/widgets/permission_guard.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:provider/provider.dart';
-import 'package:e_commerce/data/providers/auth_provider.dart';
-import 'package:e_commerce/data/services/api_service.dart';
+import 'package:dealio/data/providers/auth_provider.dart';
+import 'package:dealio/data/services/api_service.dart';
 
 /// VendorDashboardScreen — Analytics & Payouts
 /// ─────────────────────────────────────────────────────────────────────────────

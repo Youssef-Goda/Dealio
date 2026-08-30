@@ -1,13 +1,14 @@
-import 'package:e_commerce/core/constants/colors.dart';
-import 'package:e_commerce/core/widgets/dealio_skeleton.dart';
-import 'package:e_commerce/data/providers/auth_provider.dart';
-import 'package:e_commerce/data/providers/user_provider.dart';
-import 'package:e_commerce/data/models/user_model.dart';
-import 'package:e_commerce/core/utils/responsive_helper.dart';
 import 'package:flutter/material.dart';
-import 'package:e_commerce/features/admin/widgets/user_details_dialog.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:provider/provider.dart';
+import 'package:dealio/core/constants/colors.dart';
+import 'package:dealio/core/widgets/dealio_skeleton.dart';
+import 'package:dealio/data/providers/auth_provider.dart';
+import 'package:dealio/data/providers/user_provider.dart';
+import 'package:dealio/data/models/user_model.dart';
+import 'package:dealio/core/utils/responsive_helper.dart';
+import 'package:dealio/features/admin/widgets/user_details_dialog.dart';
+
 
 // ── Owner identity constant ─────────────────────────────────────────────────
 // The founding owner account. Identified client-side for UI protection.

@@ -426,10 +426,10 @@
 
 
 import 'dart:async';
-import 'package:e_commerce/core/constants/colors.dart';
-import 'package:e_commerce/data/providers/auth_provider.dart';
-import 'package:e_commerce/features/auth/screens/new_password_screen.dart';
-import 'package:e_commerce/core/utils/responsive_helper.dart';
+import 'package:dealio/core/constants/colors.dart';
+import 'package:dealio/data/providers/auth_provider.dart';
+import 'package:dealio/features/auth/screens/new_password_screen.dart';
+import 'package:dealio/core/utils/responsive_helper.dart';
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';

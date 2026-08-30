@@ -1,19 +1,19 @@
 import 'dart:async';
 import 'dart:ui';
-import 'package:e_commerce/core/constants/colors.dart';
-import 'package:e_commerce/core/constants/base_url.dart';
-import 'package:e_commerce/data/providers/auth_provider.dart';
-import 'package:e_commerce/data/providers/settings_provider.dart';
+import 'package:dealio/core/constants/colors.dart';
+import 'package:dealio/core/constants/base_url.dart';
+import 'package:dealio/data/providers/auth_provider.dart';
+import 'package:dealio/data/providers/settings_provider.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:provider/provider.dart';
-import 'package:e_commerce/data/services/api_service.dart';
+import 'package:dealio/data/services/api_service.dart';
 import 'package:http/http.dart' as http;
 import 'package:top_snackbar_flutter/custom_snack_bar.dart';
 import 'package:top_snackbar_flutter/top_snack_bar.dart';
-import 'package:e_commerce/features/admin/widgets/uploading_images.dart';
+import 'package:dealio/features/admin/widgets/uploading_images.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:url_launcher/url_launcher.dart';
 

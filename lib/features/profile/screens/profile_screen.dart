@@ -1,9 +1,9 @@
 import 'dart:ui';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:e_commerce/core/constants/colors.dart';
-import 'package:e_commerce/core/utils/responsive_helper.dart';
-import 'package:e_commerce/data/providers/auth_provider.dart';
-import 'package:e_commerce/data/providers/profile_provider.dart';
+import 'package:dealio/core/constants/colors.dart';
+import 'package:dealio/core/utils/responsive_helper.dart';
+import 'package:dealio/data/providers/auth_provider.dart';
+import 'package:dealio/data/providers/profile_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:intl_phone_field/country_picker_dialog.dart';
@@ -95,65 +95,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
     return n;
   }
-
-  // @override
-  //   void didChangeDependencies() {
-  //     super.didChangeDependencies();
-
-  //     // حركة تأكيدية: لو لسه مش initialized، استنى ثانية وبعدين اسحب الداتا
-  //     if (!_initialized) {
-  //       Future.delayed(const Duration(milliseconds: 1500), () {
-  //         if (mounted) {
-  //           final auth = context.read<AuthProvider>();
-  //           if (auth.isLoggedIn && auth.token != null) {
-  //             context.read<ProfileProvider>().fetchProfile(auth.token!);
-  //             _initialized = true;
-  //           }
-  //         }
-  //       });
-  //     }
-  //   }
-
-  // didChangeDependencies removed — initialization is handled safely
-  // in initState via addPostFrameCallback to avoid setState during build.
-
-  // @override
-  // void didChangeDependencies() {
-  //   super.didChangeDependencies();
-  //   if (!_initialized) {
-  //     _initialized = true;
-  //     final auth = context.read<AuthProvider>();
-  //     final profile = context.read<ProfileProvider>();
-
-  //     final token = auth.user['accessToken']?.toString() ?? '';
-
-  //     profile.loadFromUser(auth.user);
-  //     _firstNameCtrl.text = profile.firstName;
-  //     _lastNameCtrl.text = profile.lastName;
-  //     // Only the national number goes into the controller
-  //     _phoneCtrl.text = _nationalNumber(profile.phoneNumber);
-
-  //     profile.fetchProfile(token).then((_) {
-  //       if (profile.sessionExpired && mounted) {
-  //         ScaffoldMessenger.of(context).showSnackBar(
-  //           const SnackBar(
-  //             content: Text('Session expired. Please log in again.'),
-  //             backgroundColor: AppColors.errorRed,
-  //           ),
-  //         );
-  //         auth.logout();
-  //         Navigator.of(context).pushNamedAndRemoveUntil('/login', (_) => false);
-  //         return;
-  //       }
-  //       if (mounted) {
-  //         _firstNameCtrl.text = profile.firstName;
-  //         _lastNameCtrl.text = profile.lastName;
-  //         // Re-strip after fresh fetch so controller stays national-only
-  //         _phoneCtrl.text = _nationalNumber(profile.phoneNumber);
-  //       }
-  //     });
-  //   }
-  // }
 
   @override
   void dispose() {
@@ -1363,97 +1304,6 @@ class _PersonalInfoSection extends StatelessWidget {
   }
 }
 
-// ── Gender segmented control ──────────────────────────────────────────────────
-
-// class _GenderSelector extends StatelessWidget {
-//   final ProfileProvider profile;
-//   final bool isDark;
-
-//   const _GenderSelector({required this.profile, required this.isDark});
-
-//   @override
-//   Widget build(BuildContext context) {
-//     const options = [
-//       ('male', '♂ Male'),
-//       ('female', '♀ Female'),
-//       ('Prefer not', 'Prefer not'),
-//     ];
-
-//     return Padding(
-//       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 12),
-//       child: Row(
-//         children: [
-//           Icon(
-//             LucideIcons.personStanding,
-//             size: 18,
-//             color: isDark ? AppColors.darkTextMuted : AppColors.textSecondary,
-//           ),
-//           const SizedBox(width: 12),
-//           Text(
-//             'Gender',
-//             style: TextStyle(
-//               fontSize: R.font(context, 13.5),
-//               color: isDark ? AppColors.darkTextMuted : AppColors.textSecondary,
-//               fontWeight: FontWeight.w500,
-//             ),
-//           ),
-//           const Spacer(),
-//           // Custom segmented control
-//           Container(
-//             decoration: BoxDecoration(
-//               color: isDark ? AppColors.darkBackground : AppColors.surfaceLight,
-//               borderRadius: BorderRadius.circular(10),
-//             ),
-//             child: Row(
-//               mainAxisSize: MainAxisSize.min,
-//               children: options.map((opt) {
-//                 final isSelected = profile.gender == opt.$1;
-//                 return GestureDetector(
-//                   onTap: () => profile.setGender(opt.$1),
-//                   child: AnimatedContainer(
-//                     duration: const Duration(milliseconds: 200),
-//                     padding: const EdgeInsets.symmetric(
-//                       horizontal: 10,
-//                       vertical: 7,
-//                     ),
-//                     decoration: BoxDecoration(
-//                       color: isSelected
-//                           ? AppColors.primary.withOpacity(0.18)
-//                           : Colors.transparent,
-//                       borderRadius: BorderRadius.circular(9),
-//                     ),
-//                     child: Text(
-//                       opt.$2,
-//                       style: TextStyle(
-//                         fontSize: R.font(context, 11.5),
-//                         color: isSelected
-//                             ? Colors.black87
-//                             : (isDark
-//                                   ? AppColors.darkTextMuted
-//                                   : AppColors.textSecondary),
-//                         fontWeight: isSelected
-//                             ? FontWeight.bold
-//                             : FontWeight.normal,
-//                       ),
-//                     ),
-//                   ),
-//                 );
-//               }).toList(),
-//             ),
-//           ),
-//         ],
-//       ),
-//     );
-//   }
-// }
-
-
-
-
-
-
-
-
 class _GenderSelector extends StatelessWidget {
   final ProfileProvider profile;
   final bool isDark;
@@ -1480,7 +1330,7 @@ class _GenderSelector extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: options.map((opt) {
           final isSelected = profile.gender == opt.$1;
-          
+
           Color activeColor;
           if (opt.$1 == 'male') {
             activeColor = Colors.blue;
@@ -1514,9 +1364,11 @@ class _GenderSelector extends StatelessWidget {
                     color: isSelected
                         ? (isDark ? Colors.white : activeColor)
                         : (isDark
-                            ? AppColors.darkTextMuted
-                            : AppColors.textSecondary),
-                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                              ? AppColors.darkTextMuted
+                              : AppColors.textSecondary),
+                    fontWeight: isSelected
+                        ? FontWeight.bold
+                        : FontWeight.normal,
                   ),
                 ),
               ),
@@ -1537,14 +1389,18 @@ class _GenderSelector extends StatelessWidget {
                 Icon(
                   LucideIcons.personStanding,
                   size: 22,
-                  color: isDark ? AppColors.darkTextMuted : AppColors.textSecondary,
+                  color: isDark
+                      ? AppColors.darkTextMuted
+                      : AppColors.textSecondary,
                 ),
                 const SizedBox(width: 12),
                 Text(
                   'Gender',
                   style: TextStyle(
                     fontSize: R.font(context, 14.5),
-                    color: isDark ? AppColors.darkTextMuted : AppColors.textSecondary,
+                    color: isDark
+                        ? AppColors.darkTextMuted
+                        : AppColors.textSecondary,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -1582,9 +1438,6 @@ class _GenderSelector extends StatelessWidget {
     );
   }
 }
-
-
-
 
 // ══════════════════════════════════════════════════════════════════════════════
 //  REUSABLE SMALL WIDGETS

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:e_commerce/core/constants/colors.dart';
+import 'package:dealio/core/constants/colors.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class AppTheme {

@@ -1,4 +1,4 @@
-import 'package:e_commerce/data/services/api_service.dart';
+import 'package:dealio/data/services/api_service.dart';
 
 class ProductRepository {
   

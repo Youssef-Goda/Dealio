@@ -1,26 +1,9 @@
-/// location_onboarding_screen.dart
-/// ────────────────────────────────────────────────────────────────────────────
-/// First-time location selection screen.
-///
-/// Flow:
-///   OTP verified → check SharedPreferences('locationOnboardingDone')
-///   → if false → this screen → user confirms location
-///   → save as default ShippingAddress → set pref → go to Home
-///
-/// Design:
-///   • Full-screen flutter_map with OSM tiles (no API key required).
-///   • Current GPS location auto-centred when permission granted.
-///   • Draggable map — tap anywhere to move the pin.
-///   • Bottom sheet shows reverse-geocoded address + Confirm button.
-///   • Skip button for users who deny permission or want to skip.
-///   • Never shown again once completed (SharedPreferences flag).
-
-import 'package:e_commerce/core/constants/colors.dart';
-import 'package:e_commerce/data/models/shipping_address_model.dart';
-import 'package:e_commerce/data/providers/auth_provider.dart';
-import 'package:e_commerce/data/providers/checkout_provider.dart';
-import 'package:e_commerce/data/services/location_service.dart';
-import 'package:e_commerce/features/home/screens/home_screen.dart';
+import 'package:dealio/core/constants/colors.dart';
+import 'package:dealio/data/models/shipping_address_model.dart';
+import 'package:dealio/data/providers/auth_provider.dart';
+import 'package:dealio/data/providers/checkout_provider.dart';
+import 'package:dealio/data/services/location_service.dart';
+import 'package:dealio/features/home/screens/home_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';

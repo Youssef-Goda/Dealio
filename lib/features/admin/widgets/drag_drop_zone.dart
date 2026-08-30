@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:e_commerce/core/constants/colors.dart';
+import 'package:dealio/core/constants/colors.dart';
 
 class DragDropZone extends StatefulWidget {
   final Function(List<XFile>) onImagesDropped;

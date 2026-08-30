@@ -1,7 +1,7 @@
-import 'package:e_commerce/core/constants/colors.dart';
-import 'package:e_commerce/data/models/cart_item_model.dart';
-import 'package:e_commerce/data/providers/cart_provider.dart';
-import 'package:e_commerce/features/cart/widgets/quantity_stepper.dart';
+import 'package:dealio/core/constants/colors.dart';
+import 'package:dealio/data/models/cart_item_model.dart';
+import 'package:dealio/data/providers/cart_provider.dart';
+import 'package:dealio/features/cart/widgets/quantity_stepper.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 

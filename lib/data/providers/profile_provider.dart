@@ -1,13 +1,11 @@
 import 'dart:convert';
 import 'dart:io';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
-import 'package:e_commerce/data/providers/auth_provider.dart';
-import 'package:e_commerce/data/services/api_service.dart';
+import 'package:dealio/data/providers/auth_provider.dart';
+import 'package:dealio/data/services/api_service.dart';
 
 // ── Email-change flow steps ───────────────────────────────────────────────────
 enum EmailChangeStep { idle, verifyIdentity, enterNewEmail, verifyNewOtp }

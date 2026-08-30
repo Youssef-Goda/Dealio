@@ -1,5 +1,5 @@
 import 'package:http/http.dart' as http;
-import 'package:e_commerce/data/services/api_service.dart';
+import 'package:dealio/data/services/api_service.dart';
 
 class AuthRepository {
   Map<String, dynamic> _handleRes(http.Response res) =>

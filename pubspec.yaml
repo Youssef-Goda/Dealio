@@ -1,5 +1,5 @@
-name: e_commerce
-description: "e-commwerce project"
+name: dealio
+description: "An e-commerce application for buying and selling products."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev

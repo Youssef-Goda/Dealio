@@ -1,7 +1,7 @@
-import 'package:e_commerce/core/constants/app_roles.dart';
-import 'package:e_commerce/core/widgets/role_guard.dart';
-import 'package:e_commerce/data/providers/auth_provider.dart';
-import 'package:e_commerce/data/providers/user_provider.dart';
+import 'package:dealio/core/constants/app_roles.dart';
+import 'package:dealio/core/widgets/role_guard.dart';
+import 'package:dealio/data/providers/auth_provider.dart';
+import 'package:dealio/data/providers/user_provider.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';

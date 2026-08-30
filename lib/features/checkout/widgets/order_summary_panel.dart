@@ -1,6 +1,6 @@
-import 'package:e_commerce/core/constants/colors.dart';
-import 'package:e_commerce/data/providers/cart_provider.dart';
-import 'package:e_commerce/data/providers/checkout_provider.dart';
+import 'package:dealio/core/constants/colors.dart';
+import 'package:dealio/data/providers/cart_provider.dart';
+import 'package:dealio/data/providers/checkout_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:provider/provider.dart';

@@ -3,11 +3,11 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:provider/provider.dart';
 import 'package:top_snackbar_flutter/custom_snack_bar.dart';
 import 'package:top_snackbar_flutter/top_snack_bar.dart';
-import 'package:e_commerce/core/constants/app_roles.dart';
-import 'package:e_commerce/core/constants/colors.dart';
-import 'package:e_commerce/core/widgets/permission_guard.dart';
-import 'package:e_commerce/data/providers/auth_provider.dart';
-import 'package:e_commerce/data/providers/settings_provider.dart';
+import 'package:dealio/core/constants/app_roles.dart';
+import 'package:dealio/core/constants/colors.dart';
+import 'package:dealio/core/widgets/permission_guard.dart';
+import 'package:dealio/data/providers/auth_provider.dart';
+import 'package:dealio/data/providers/settings_provider.dart';
 
 /// StoreSettingsScreen
 /// ─────────────────────────────────────────────────────────────────────────────

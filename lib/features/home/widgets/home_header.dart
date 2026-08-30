@@ -1,7 +1,7 @@
-import 'package:e_commerce/core/constants/colors.dart';
-import 'package:e_commerce/data/models/shipping_address_model.dart';
-import 'package:e_commerce/data/providers/auth_provider.dart';
-import 'package:e_commerce/data/providers/checkout_provider.dart';
+import 'package:dealio/core/constants/colors.dart';
+import 'package:dealio/data/models/shipping_address_model.dart';
+import 'package:dealio/data/providers/auth_provider.dart';
+import 'package:dealio/data/providers/checkout_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:provider/provider.dart';

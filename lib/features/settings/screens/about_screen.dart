@@ -1,5 +1,5 @@
-import 'package:e_commerce/core/constants/colors.dart';
-import 'package:e_commerce/core/utils/responsive_helper.dart';
+import 'package:dealio/core/constants/colors.dart';
+import 'package:dealio/core/utils/responsive_helper.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -96,47 +96,6 @@ class AboutScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 16),
-
-                // Container(
-                //   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                //   decoration: BoxDecoration(
-                //     color: isDark ? AppColors.darkSurface : AppColors.surfaceLight,
-                //     borderRadius: BorderRadius.circular(12),
-                //     border: Border.all(
-                //       color: isDark ? AppColors.darkBorder : AppColors.borderLight,
-                //     ),
-                //   ),
-                //   child: Text(
-                //     'Version 1.2.0',
-                //     style: TextStyle(
-                //       fontSize: 12,
-                //       fontWeight: FontWeight.w700,
-                //       color: AppColors.primary,
-                //       letterSpacing: 1,
-                //     ),
-                //   ),
-                // ),
-                // const SizedBox(height: 6),
-
-                //          Container(
-                //   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                //   decoration: BoxDecoration(
-                //     color: isDark ? AppColors.darkSurface : AppColors.surfaceLight,
-                //     borderRadius: BorderRadius.circular(12),
-                //     border: Border.all(
-                //       color: isDark ? AppColors.darkBorder : AppColors.borderLight,
-                //     ),
-                //   ),
-                //   child: Text(
-                //     'Build number: 2',
-                //     style: TextStyle(
-                //       fontSize: 12,
-                //       fontWeight: FontWeight.w700,
-                //       color: AppColors.primary,
-                //       letterSpacing: 1,
-                //     ),
-                //   ),
-                // ),
                 FutureBuilder<PackageInfo>(
                   future: PackageInfo.fromPlatform(),
                   builder: (context, snapshot) {

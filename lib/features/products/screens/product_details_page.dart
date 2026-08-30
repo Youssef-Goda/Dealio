@@ -1,10 +1,10 @@
 import 'dart:ui';
-import 'package:e_commerce/core/constants/colors.dart';
-import 'package:e_commerce/data/models/product_model.dart';
-import 'package:e_commerce/data/providers/auth_provider.dart';
-import 'package:e_commerce/data/providers/cart_provider.dart';
-import 'package:e_commerce/features/admin/widgets/product_details_dialog.dart';
-import 'package:e_commerce/data/providers/product_provider.dart';
+import 'package:dealio/core/constants/colors.dart';
+import 'package:dealio/data/models/product_model.dart';
+import 'package:dealio/data/providers/auth_provider.dart';
+import 'package:dealio/data/providers/cart_provider.dart';
+import 'package:dealio/features/admin/widgets/product_details_dialog.dart';
+import 'package:dealio/data/providers/product_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/svg.dart';

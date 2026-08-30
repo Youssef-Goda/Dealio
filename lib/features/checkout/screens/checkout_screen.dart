@@ -1,20 +1,19 @@
-import 'package:e_commerce/core/constants/colors.dart';
-import 'package:e_commerce/core/utils/responsive_helper.dart';
-import 'package:e_commerce/data/providers/auth_provider.dart';
-import 'package:e_commerce/data/providers/cart_provider.dart';
-import 'package:e_commerce/data/providers/checkout_provider.dart';
-import 'package:e_commerce/data/providers/orders_provider.dart';
-import 'package:e_commerce/data/providers/profile_provider.dart';
-import 'package:e_commerce/features/checkout/widgets/address_card.dart';
-import 'package:e_commerce/features/checkout/widgets/address_form_dialog.dart';
-import 'package:e_commerce/features/checkout/widgets/order_summary_panel.dart';
-import 'package:e_commerce/features/checkout/widgets/payment_method_selector.dart';
+import 'package:dealio/core/constants/colors.dart';
+import 'package:dealio/core/utils/responsive_helper.dart';
+import 'package:dealio/data/providers/auth_provider.dart';
+import 'package:dealio/data/providers/cart_provider.dart';
+import 'package:dealio/data/providers/checkout_provider.dart';
+import 'package:dealio/data/providers/orders_provider.dart';
+import 'package:dealio/data/providers/profile_provider.dart';
+import 'package:dealio/features/checkout/widgets/address_card.dart';
+import 'package:dealio/features/checkout/widgets/address_form_dialog.dart';
+import 'package:dealio/features/checkout/widgets/order_summary_panel.dart';
+import 'package:dealio/features/checkout/widgets/payment_method_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:provider/provider.dart';
-
-import 'package:e_commerce/data/models/order_model.dart';
-import 'package:e_commerce/features/checkout/widgets/fawry_cash_modal.dart';
+import 'package:dealio/data/models/order_model.dart';
+import 'package:dealio/features/checkout/widgets/fawry_cash_modal.dart';
 import 'package:flutter_paymob_sdk/flutter_paymob_sdk.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -206,18 +205,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         }
       } catch (e) {
         final errorStr = e.toString();
-        // if ((errorStr.contains('MissingPluginException') || errorStr.contains('Unsupported operation')) && unifiedCheckoutUrl != null) {
-        //   final uri = Uri.parse(unifiedCheckoutUrl);
-        //   if (await canLaunchUrl(uri)) {
-        //     await launchUrl(
-        //       uri,
-        //       mode: LaunchMode.externalApplication,
-        //       webOnlyWindowName: '_self',
-        //     );
-        //     return;
-        //   }
-        // }
-
         if ((errorStr.contains('MissingPluginException') ||
                 errorStr.contains('Unsupported operation')) &&
             unifiedCheckoutUrl != null) {

@@ -1,17 +1,15 @@
-import 'package:e_commerce/core/constants/colors.dart';
-import 'package:e_commerce/core/widgets/dealio_skeleton.dart';
-import 'package:e_commerce/features/admin/widgets/add_product_dialog.dart';
+import 'package:dealio/core/constants/colors.dart';
+import 'package:dealio/core/widgets/dealio_skeleton.dart';
+import 'package:dealio/features/admin/widgets/add_product_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:lottie/lottie.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
-
-// import 'package:lucide_icons/lucide_icons.dart';
 import 'package:provider/provider.dart';
-import 'package:e_commerce/data/providers/product_provider.dart';
-import 'package:e_commerce/core/utils/responsive_helper.dart';
-import 'package:e_commerce/features/admin/widgets/product_details_dialog.dart';
-import 'package:e_commerce/data/models/product_model.dart';
+import 'package:dealio/data/providers/product_provider.dart';
+import 'package:dealio/core/utils/responsive_helper.dart';
+import 'package:dealio/features/admin/widgets/product_details_dialog.dart';
+import 'package:dealio/data/models/product_model.dart';
 
 class ProductsContent extends StatefulWidget {
   const ProductsContent({super.key});

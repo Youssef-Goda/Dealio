@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:e_commerce/core/constants/base_url.dart';
+import 'package:dealio/core/constants/base_url.dart';
 
 class ApiService {
   static const String _defaultUnauthorizedMessage =

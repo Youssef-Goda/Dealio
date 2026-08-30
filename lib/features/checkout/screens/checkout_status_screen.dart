@@ -1,27 +1,13 @@
-import 'package:e_commerce/core/constants/colors.dart';
-import 'package:e_commerce/data/providers/cart_provider.dart';
-import 'package:e_commerce/data/providers/checkout_provider.dart';
-import 'package:e_commerce/data/models/order_model.dart';
-import 'package:e_commerce/data/services/api_service.dart';
+import 'package:dealio/core/constants/colors.dart';
+import 'package:dealio/data/providers/cart_provider.dart';
+import 'package:dealio/data/providers/checkout_provider.dart';
+import 'package:dealio/data/models/order_model.dart';
+import 'package:dealio/data/services/api_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:provider/provider.dart';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// CheckoutStatusScreen
-//
-// Paymob redirects the customer's browser to:
-//   <FRONTEND_URL>/#/checkout/status?success=true&order_id=<uuid>&...
-// after the card-payment window closes (success OR cancel).
-//
-// This screen:
-//   1. Reads `order_id` from the URL query string (web) or route arguments.
-//   2. Calls GET /api/orders/:id/payment-status to verify server-side.
-//   3. Renders a premium animated success or failure card.
-//   4. Never trusts the Paymob `success` query param alone — only the backend
-//      webhook-updated `payment_status` field is authoritative.
-// ─────────────────────────────────────────────────────────────────────────────
 class CheckoutStatusScreen extends StatefulWidget {
   const CheckoutStatusScreen({super.key});
 

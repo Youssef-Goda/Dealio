@@ -1,8 +1,8 @@
-import 'package:e_commerce/core/constants/colors.dart';
-import 'package:e_commerce/core/utils/responsive_helper.dart';
-import 'package:e_commerce/data/providers/product_provider.dart';
-import 'package:e_commerce/data/providers/wishlist_provider.dart';
-import 'package:e_commerce/features/products/widgets/product_card.dart';
+import 'package:dealio/core/constants/colors.dart';
+import 'package:dealio/core/utils/responsive_helper.dart';
+import 'package:dealio/data/providers/product_provider.dart';
+import 'package:dealio/data/providers/wishlist_provider.dart';
+import 'package:dealio/features/products/widgets/product_card.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:provider/provider.dart';
