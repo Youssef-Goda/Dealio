@@ -9,6 +9,7 @@ import 'package:dealio/features/checkout/widgets/address_card.dart';
 import 'package:dealio/features/checkout/widgets/address_form_dialog.dart';
 import 'package:dealio/features/checkout/widgets/order_summary_panel.dart';
 import 'package:dealio/features/checkout/widgets/payment_method_selector.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:provider/provider.dart';
@@ -16,6 +17,8 @@ import 'package:dealio/data/models/order_model.dart';
 import 'package:dealio/features/checkout/widgets/fawry_cash_modal.dart';
 import 'package:flutter_paymob_sdk/flutter_paymob_sdk.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter/foundation.dart';
+import 'package:universal_html/html.dart' as html;
 
 class CheckoutScreen extends StatefulWidget {
   const CheckoutScreen({super.key});
@@ -130,14 +133,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         _showError('Client secret was not returned. Please try again.');
         return;
       }
-
-      // final unifiedCheckoutUrl = (result['payment_url'] as String?)?.isNotEmpty == true
-      //     ? result['payment_url'] as String
-      //     : (publicKey.isNotEmpty
-      //         ? 'https://accept.paymob.com/unifiedcheckout/?publicKey=${Uri.encodeComponent(publicKey)}&clientSecret=${Uri.encodeComponent(clientSecret)}'
-      //         : null);
-
-      // --- التعديل هنا: تحديد الدومين ديناميكياً ---
       final isTestKey = publicKey.toLowerCase().contains('test');
       final domain = isTestKey
           ? 'accept.paymobsolutions.com'
@@ -172,29 +167,35 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 paymentResult.errorMessage?.contains('NotImplemented') ==
                     true) &&
             unifiedCheckoutUrl != null) {
-          // // Fallback to Unified Checkout URL ONLY for unsupported platforms (e.g. Web, Windows)
           // final uri = Uri.parse(unifiedCheckoutUrl);
           // if (await canLaunchUrl(uri)) {
           //   await launchUrl(
           //     uri,
-          //     mode: LaunchMode.externalApplication,
-          //     webOnlyWindowName: '_self',
+          //     mode: LaunchMode.inAppWebView,
+          //     webViewConfiguration: const WebViewConfiguration(
+          //       enableJavaScript: true,
+          //     ),
           //   );
-          // } else {
+          // }
+          // else {
           //   _showError('Could not open Paymob checkout page.');
           // }
-          // Fallback to Unified Checkout URL via In-App WebView
-          final uri = Uri.parse(unifiedCheckoutUrl);
-          if (await canLaunchUrl(uri)) {
-            await launchUrl(
-              uri,
-              mode: LaunchMode.inAppWebView,
-              webViewConfiguration: const WebViewConfiguration(
-                enableJavaScript: true,
-              ),
-            );
+          if (kIsWeb) {
+            html.window.location.href = unifiedCheckoutUrl;
           } else {
-            _showError('Could not open Paymob checkout page.');
+            final uri = Uri.parse(unifiedCheckoutUrl);
+            if (await canLaunchUrl(uri)) {
+              await launchUrl(
+                uri,
+                mode: LaunchMode.inAppWebView,
+                webOnlyWindowName: '_self', // تأكيد إضافي
+                webViewConfiguration: const WebViewConfiguration(
+                  enableJavaScript: true,
+                ),
+              );
+            } else {
+              _showError('Could not open Paymob checkout page.');
+            }
           }
         } else {
           _showError(
@@ -203,16 +204,63 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 : 'Payment was declined or cancelled. Please try again.',
           );
         }
+        // } catch (e) {
+        //   final errorStr = e.toString();
+        //   if ((errorStr.contains('MissingPluginException') ||
+        //           errorStr.contains('Unsupported operation')) &&
+        //       unifiedCheckoutUrl != null) {
+        //     final uri = Uri.parse(unifiedCheckoutUrl);
+        //     // استبدل الـ launchUrl اللي هنا بالكود ده:
+        //     if ((errorStr.contains('MissingPluginException') ||
+        //             errorStr.contains('Unsupported operation')) &&
+        //         unifiedCheckoutUrl != null) {
+        //       if (kIsWeb) {
+        //         html.window.location.href = unifiedCheckoutUrl;
+        //         return;
+        //       }
+
+        //       final uri = Uri.parse(unifiedCheckoutUrl);
+        //       if (await canLaunchUrl(uri)) {
+        //         await launchUrl(
+        //           uri,
+        //           mode: LaunchMode.inAppWebView,
+        //           webOnlyWindowName: '_self', // تأكيد إضافي
+        //           webViewConfiguration: const WebViewConfiguration(
+        //             enableJavaScript: true,
+        //           ),
+        //         );
+        //         return;
+        //       }
+        //     }
+        //     // if (await canLaunchUrl(uri)) {
+        //     //   await launchUrl(
+        //     //     uri,
+        //     //     mode: LaunchMode.inAppWebView,
+        //     //     webViewConfiguration: const WebViewConfiguration(
+        //     //       enableJavaScript: true,
+        //     //     ),
+        //     //   );
+        //     //   return;
+        //     // }
+        //   }
+        //   if (mounted) _showError(errorStr.replaceAll('Exception: ', ''));
+        // }
       } catch (e) {
         final errorStr = e.toString();
         if ((errorStr.contains('MissingPluginException') ||
                 errorStr.contains('Unsupported operation')) &&
             unifiedCheckoutUrl != null) {
+          if (kIsWeb) {
+            html.window.location.href = unifiedCheckoutUrl;
+            return;
+          }
+
           final uri = Uri.parse(unifiedCheckoutUrl);
           if (await canLaunchUrl(uri)) {
             await launchUrl(
               uri,
               mode: LaunchMode.inAppWebView,
+              webOnlyWindowName: '_self',
               webViewConfiguration: const WebViewConfiguration(
                 enableJavaScript: true,
               ),
