@@ -72,6 +72,8 @@ dependencies:
   latlong2: ^0.10.1
   flutter_paymob_sdk: ^1.0.1
   package_info_plus: ^9.0.1
+  device_info_plus: ^12.4.0
+  image_cropper: ^12.2.1
 
 
 dev_dependencies:

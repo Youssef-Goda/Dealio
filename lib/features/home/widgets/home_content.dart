@@ -3,7 +3,7 @@ import 'package:dealio/data/models/product_model.dart';
 import 'package:dealio/data/providers/category_provider.dart';
 import 'package:dealio/data/providers/product_provider.dart';
 import 'package:dealio/data/providers/settings_provider.dart';
-import 'package:dealio/features/home/widgets/categories_list.dart';
+import 'package:dealio/features/home/widgets/category_grid_section.dart';
 import 'package:dealio/features/home/widgets/home_banner.dart';
 import 'package:dealio/features/home/widgets/home_header.dart';
 import 'package:dealio/features/products/screens/product_details_page.dart';
@@ -70,8 +70,8 @@ class _HomeContentState extends State<HomeContent> {
               // ── Auto-scrolling banner ──────────────────────────────────────
               const HomeBanner(),
 
-              // ── Horizontal categories bar ──────────────────────────────────
-              const CategoriesList(),
+              // ── Circular categories bar ──────────────────────────────────
+              const CategoryGridSection(),
 
               R.verticalSpace(context, 12),
 
@@ -112,9 +112,9 @@ class _HomeContentState extends State<HomeContent> {
                         int crossAxisCount;
                         if (width < 600) {
                           crossAxisCount = 2;
-                        } else if (width < 900) {
+                        } else if (width < 850) {
                           crossAxisCount = 3;
-                        } else if (width < 1200) {
+                        } else if (width < 1000) {
                           crossAxisCount = 4;
                         } else {
                           crossAxisCount = 5;
@@ -186,9 +186,9 @@ class _HomeContentState extends State<HomeContent> {
 
                       if (width < 600) {
                         crossAxisCount = 2;
-                      } else if (width < 900) {
+                      } else if (width < 850) {
                         crossAxisCount = 3;
-                      } else if (width < 1200) {
+                      } else if (width < 1000) {
                         crossAxisCount = 4;
                       } else {
                         crossAxisCount = 5;

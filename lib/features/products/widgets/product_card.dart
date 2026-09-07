@@ -6,6 +6,7 @@ import 'package:dealio/data/models/product_model.dart';
 import 'package:dealio/data/providers/auth_provider.dart';
 import 'package:dealio/data/providers/cart_provider.dart';
 import 'package:dealio/data/providers/wishlist_provider.dart';
+import 'package:dealio/core/widgets/focal_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/svg.dart';
@@ -505,12 +506,12 @@ class _ProductCardState extends State<ProductCard> {
 
   Widget _buildSingleImage(BuildContext context, bool isDark, String url) {
     if (url.trim().isEmpty) return _fallbackIcon(context, isDark);
-    return Image.network(
-      url,
+    return FocalNetworkImage(
+      imageUrl: url,
       fit: BoxFit.contain,
       width: double.infinity,
       height: double.infinity,
-      errorBuilder: (_, __, ___) => _fallbackIcon(context, isDark),
+      errorWidget: (_, __, ___) => _fallbackIcon(context, isDark),
     );
   }
 
@@ -519,12 +520,12 @@ class _ProductCardState extends State<ProductCard> {
         widget.product.imageUrls.isNotEmpty &&
         widget.product.imageUrls.first.trim().isNotEmpty;
     if (hasImage) {
-      return Image.network(
-        widget.product.imageUrls.first,
+      return FocalNetworkImage(
+        imageUrl: widget.product.imageUrls.first,
         fit: BoxFit.contain,
         width: double.infinity,
         height: double.infinity,
-        errorBuilder: (_, __, ___) => _fallbackIcon(context, isDark),
+          errorWidget: (_, __, ___) => _fallbackIcon(context, isDark),
       );
     }
     return _fallbackIcon(context, isDark);

@@ -17,6 +17,7 @@ import 'package:provider/provider.dart';
 //   • "Find your deals!" title text
 //   • Inline search TextField (search is accessible via AppBar icon → SearchScreen)
 //   • Language/locale selector
+//   • Language/locale selector
 // ─────────────────────────────────────────────────────────────────────────────
 
 class HomeHeader extends StatefulWidget {
@@ -116,6 +117,58 @@ class _HomeHeaderState extends State<HomeHeader> {
 
           // ── Row 2: Location ─────────────────────────────────────────────
           _LocationRow(isDark: isDark),
+
+          const SizedBox(height: 16),
+
+          // ── Row 3: Search Pill ──────────────────────────────────────────
+          Container(
+            height: 44,
+            decoration: BoxDecoration(
+              color: isDark ? AppColors.darkSurface : Colors.grey[100],
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(
+                color: isDark ? AppColors.darkBorder : Colors.grey[300]!,
+                width: 1,
+              ),
+            ),
+            child: TextField(
+              controller: widget.searchController,
+              onChanged: widget.onSearchChanged,
+              onSubmitted: widget.onSearchChanged,
+              textInputAction: TextInputAction.search,
+              style: TextStyle(
+                color: isDark ? AppColors.darkTextPrimary : AppColors.textDark,
+                fontSize: 14,
+              ),
+              decoration: InputDecoration(
+                hintText: 'Search for products...',
+                hintStyle: TextStyle(
+                  color: isDark ? AppColors.darkTextMuted : Colors.grey[500],
+                  fontSize: 14,
+                ),
+                prefixIcon: Icon(
+                  LucideIcons.search,
+                  color: isDark ? AppColors.darkTextMuted : Colors.grey[500],
+                  size: 18,
+                ),
+                suffixIcon: widget.searchController.text.isNotEmpty
+                    ? IconButton(
+                        icon: Icon(
+                          LucideIcons.x,
+                          color: isDark ? AppColors.darkTextMuted : Colors.grey[500],
+                          size: 16,
+                        ),
+                        onPressed: () {
+                          widget.searchController.clear();
+                          widget.onSearchChanged('');
+                        },
+                      )
+                    : null,
+                border: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              ),
+            ),
+          ),
         ],
       ),
     );

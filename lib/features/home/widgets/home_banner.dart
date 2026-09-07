@@ -14,7 +14,8 @@ import 'package:http/http.dart' as http;
 import 'package:top_snackbar_flutter/custom_snack_bar.dart';
 import 'package:top_snackbar_flutter/top_snack_bar.dart';
 import 'package:dealio/features/admin/widgets/uploading_images.dart';
-import 'package:cached_network_image/cached_network_image.dart';
+import 'package:dealio/core/widgets/focal_network_image.dart';
+
 import 'package:url_launcher/url_launcher.dart';
 
 /// Landscape banner ratio on phones (wide, not too tall).
@@ -61,7 +62,10 @@ class HomeBanner extends StatefulWidget {
 }
 
 class _HomeBannerState extends State<HomeBanner> {
-  late final PageController _pageController = PageController(initialPage: 1000);
+  late final PageController _pageController = PageController(
+    initialPage: 1000,
+    viewportFraction: 0.88,
+  );
   int _currentPage = 1000;
   Timer? _autoScrollTimer;
 
@@ -224,7 +228,12 @@ class _HomeBannerState extends State<HomeBanner> {
     );
   }
 
-  Future<void> _saveBanner(String imageUrl, String title, String subtitle, String linkUrl) async {
+  Future<void> _saveBanner(
+    String imageUrl,
+    String title,
+    String subtitle,
+    String linkUrl,
+  ) async {
     final token = context.read<AuthProvider>().token ?? '';
     if (token.isEmpty) return;
     try {
@@ -244,7 +253,9 @@ class _HomeBannerState extends State<HomeBanner> {
       } else if (mounted) {
         showTopSnackBar(
           Overlay.of(context),
-          CustomSnackBar.error(message: result['message']?.toString() ?? 'Failed to save banner.'),
+          CustomSnackBar.error(
+            message: result['message']?.toString() ?? 'Failed to save banner.',
+          ),
         );
       }
     } catch (_) {}
@@ -259,10 +270,13 @@ class _HomeBannerState extends State<HomeBanner> {
     if (token.isEmpty) return;
     try {
       final url = Uri.parse('${AppConstants.baseUrl}/banners/$bannerId');
-      final res = await http.delete(url, headers: {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
-      });
+      final res = await http.delete(
+        url,
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
       if (res.statusCode >= 200 && res.statusCode < 300 && mounted) {
         Navigator.pop(context);
         showTopSnackBar(
@@ -309,170 +323,25 @@ class _HomeBannerState extends State<HomeBanner> {
 
   // ── Edge-peeking carousel (Responsive for Mobile & Web) ────────────────────
   Widget _buildResponsiveCarousel(
-      BuildContext context, bool isDark, bool isPrivileged) {
-    return LayoutBuilder(builder: (context, constraints) {
-      final double vw = constraints.maxWidth;
-      final bool isMobile = vw < 600;
-      final int total = _banners.length;
+    BuildContext context,
+    bool isDark,
+    bool isPrivileged,
+  ) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final double vw = constraints.maxWidth;
+        final int total = _banners.length;
 
-      final double mainFraction = isMobile ? 0.70 : 0.60;
-      final double sideFraction = isMobile ? 0.50 : 0.50;
-      final double mainAspect =
-          isMobile ? kHomeBannerAspectMobile : kHomeBannerAspectDesktop;
+        final double mainAspect = vw < 600
+            ? kHomeBannerAspectMobile
+            : kHomeBannerAspectDesktop;
+        double mainH = vw / mainAspect;
+        if (mainH > 220) mainH = 220; // Cap height on desktop
 
-      // Main banner dimensions — height is derived from a fixed landscape ratio
-      // so the carousel never stretches or collapses across screen sizes.
-      final double mainW = vw * mainFraction;
-      final double mainH = mainW / mainAspect;
-
-      // Side banner dimensions
-      final double sideW = mainW * sideFraction;
-      final double sideH = sideW / mainAspect;
-      final double sideTopOffset = (mainH - sideH) / 2;
-
-      // Visible portion peeking from screen edge (leaving clear gap around main banner)
-      final double peekW = sideW * (isMobile ? 0.28 : 0.36);
-
-      // Position calculations with gap between main and side banners
-      final double mainLeft = (vw - mainW) / 2;
-      final double prevLeft = -(sideW - peekW);
-      final double nextLeft = vw - peekW;
-
-      final double stepPrevToMain = mainLeft - prevLeft;
-      final double stepMainToNext = nextLeft - mainLeft;
-
-      const double sideRadius = kHomeBannerRadius;
-      const double mainRadius = kHomeBannerRadius;
-
-      return SizedBox(
-        height: mainH + 28, // +28 for dots row below
-        child: ClipRect(
+        return SizedBox(
+          height: mainH + 28, // +28 for dots
           child: Stack(
             children: [
-              // ── Animated Visual Layer ──────────────────────────────────────
-              AnimatedBuilder(
-                animation: _pageController,
-                builder: (context, _) {
-                  final double page = _pageController.hasClients
-                      ? (_pageController.page ?? _currentPage.toDouble())
-                      : _currentPage.toDouble();
-
-                  final int base = page.floor();
-                  final double offset = page - base;
-
-                  if (total == 0) return const SizedBox.shrink();
-
-                  final int mainIdx = base % total;
-                  final int prevIdx = (base - 1 + total * 100) % total;
-                  final int nextIdx = (base + 1) % total;
-                  final int nextNextIdx = (base + 2) % total;
-
-                  final double prevX = prevLeft - offset * stepPrevToMain;
-                  final double mainX = mainLeft - offset * stepPrevToMain;
-                  final double nextX = nextLeft - offset * stepMainToNext;
-                  final double nextNextX =
-                      nextLeft + stepMainToNext - offset * stepMainToNext;
-
-                  return Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      // 1. PREV (exits left, behind main)
-                      if (total > 1)
-                        Positioned(
-                          left: prevX,
-                          top: sideTopOffset,
-                          width: sideW,
-                          height: sideH,
-                          child: Opacity(
-                            opacity: (1.0 - offset).clamp(0.0, 1.0),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(sideRadius),
-                              child: _BannerSlide(
-                                banner: _banners[prevIdx],
-                                isDark: isDark,
-                                aspectRatio: mainAspect,
-                              ),
-                            ),
-                          ),
-                        ),
-
-                      // 2. NEXT-NEXT (enters from right, behind main)
-                      if (total > 1 && offset > 0.0)
-                        Positioned(
-                          left: nextNextX,
-                          top: sideTopOffset,
-                          width: sideW,
-                          height: sideH,
-                          child: Opacity(
-                            opacity: offset.clamp(0.0, 1.0),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(sideRadius),
-                              child: _BannerSlide(
-                                banner: _banners[nextNextIdx],
-                                isDark: isDark,
-                                aspectRatio: mainAspect,
-                              ),
-                            ),
-                          ),
-                        ),
-
-                      // 3. NEXT (moves toward center, growing into main)
-                      if (total > 1)
-                        Positioned(
-                          left: nextX,
-                          top: sideTopOffset * (1.0 - offset),
-                          width: sideW + (mainW - sideW) * offset,
-                          height: sideH + (mainH - sideH) * offset,
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(
-                                sideRadius + (mainRadius - sideRadius) * offset),
-                            child: _BannerSlide(
-                              banner: _banners[nextIdx],
-                              isDark: isDark,
-                              aspectRatio: mainAspect,
-                            ),
-                          ),
-                        ),
-
-                      // 4. MAIN (moves toward left, shrinking into prev)
-                      Positioned(
-                        left: mainX,
-                        top: sideTopOffset * offset,
-                        width: mainW - (mainW - sideW) * offset,
-                        height: mainH - (mainH - sideH) * offset,
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(
-                              mainRadius - (mainRadius - sideRadius) * offset),
-                          child: _BannerSlide(
-                            banner: _banners[mainIdx],
-                            isDark: isDark,
-                            aspectRatio: mainAspect,
-                          ),
-                        ),
-                      ),
-
-                      // 5. Admin badge
-                      if (isPrivileged)
-                        Positioned(
-                          top: 8,
-                          right: 16,
-                          child: _adminBadge(),
-                        ),
-
-                      // 6. Dots indicator
-                      if (total > 1)
-                        Positioned(
-                          bottom: 0,
-                          left: 0,
-                          right: 0,
-                          child: _dotsRow(),
-                        ),
-                    ],
-                  );
-                },
-              ),
-
-              // ── Interactive Mouse & Touch Controller Layer ─────────────────
               Positioned(
                 left: 0,
                 right: 0,
@@ -486,67 +355,74 @@ class _HomeBannerState extends State<HomeBanner> {
                     onPageChanged: (i) => setState(() => _currentPage = i),
                     itemBuilder: (ctx, i) {
                       final b = _banners[i % total];
-                      final linkUrl = b['linkUrl']?.toString() ??
+                      final linkUrl =
+                          b['linkUrl']?.toString() ??
                           b['link_url']?.toString() ??
                           '';
-                      return GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTap: linkUrl.trim().isNotEmpty
-                            ? () async {
-                                final uri = Uri.tryParse(linkUrl.trim());
-                                if (uri != null && await canLaunchUrl(uri)) {
-                                  await launchUrl(uri,
-                                      mode: LaunchMode.externalApplication);
-                                }
-                              }
-                            : null,
-                        onLongPress: isPrivileged
-                            ? () => _onLongPress(ctx, b)
-                            : null,
-                        child: Container(color: Colors.transparent),
+
+                      return AnimatedBuilder(
+                        animation: _pageController,
+                        builder: (context, child) {
+                          double value = 1.0;
+                          if (_pageController.position.haveDimensions) {
+                            value = _pageController.page! - i;
+                            value = (1 - (value.abs() * 0.1)).clamp(0.9, 1.0);
+                          } else {
+                            value = i == _currentPage ? 1.0 : 0.9;
+                          }
+                          return Transform.scale(scale: value, child: child);
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 6),
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              _BannerSlide(
+                                banner: b,
+                                isDark: isDark,
+                                aspectRatio: mainAspect,
+                              ),
+                              GestureDetector(
+                                behavior: HitTestBehavior.opaque,
+                                onTap: linkUrl.trim().isNotEmpty
+                                    ? () async {
+                                        final uri = Uri.tryParse(
+                                          linkUrl.trim(),
+                                        );
+                                        if (uri != null &&
+                                            await canLaunchUrl(uri)) {
+                                          await launchUrl(
+                                            uri,
+                                            mode:
+                                                LaunchMode.externalApplication,
+                                          );
+                                        }
+                                      }
+                                    : null,
+                                onLongPress: isPrivileged
+                                    ? () => _onLongPress(ctx, b)
+                                    : null,
+                              ),
+                              if (isPrivileged)
+                                Positioned(
+                                  top: 8,
+                                  right: 8,
+                                  child: _adminBadge(),
+                                ),
+                            ],
+                          ),
+                        ),
                       );
                     },
                   ),
                 ),
               ),
+              if (total > 1)
+                Positioned(bottom: 0, left: 0, right: 0, child: _dotsRow()),
             ],
           ),
-        ),
-      );
-    });
-  }
-
-  /// Navigate to a specific page with animation and reset the auto-scroll timer.
-  void _goToPage(int index) {
-    _autoScrollTimer?.cancel();
-    _pageController.animateToPage(
-      index,
-      duration: const Duration(milliseconds: 500),
-      curve: Curves.easeInOut,
-    );
-    _startAutoScroll();
-  }
-
-  // ── Shared UI helpers ────────────────────────────────────────────────────────
-
-  Widget _adminBadge() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: Colors.black54,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: const Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(LucideIcons.pencil, size: 10, color: Colors.white70),
-          SizedBox(width: 4),
-          Text(
-            'Hold to manage',
-            style: TextStyle(color: Colors.white70, fontSize: 9),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -576,9 +452,47 @@ class _HomeBannerState extends State<HomeBanner> {
       }),
     );
   }
+
+  // ── Admin pill badge ───────────────────────────────────────────────────────
+  Widget _adminBadge() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.black54,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white24, width: 1),
+      ),
+      child: const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.admin_panel_settings, color: Colors.white70, size: 13),
+          SizedBox(width: 4),
+          Text(
+            'Admin',
+            style: TextStyle(
+              color: Colors.white70,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Animated page jump ─────────────────────────────────────────────────────
+  void _goToPage(int page) {
+    _pageController.animateToPage(
+      page,
+      duration: const Duration(milliseconds: 450),
+      curve: Curves.easeInOut,
+    );
+  }
+
+  // ── Admin long-press context menu ──────────────────────────────────────────
+  // ═════════════════════════════════════════════════════════════════════════════
 }
 
-// ═════════════════════════════════════════════════════════════════════════════
 // Custom Scroll Behavior enabling mouse/touch dragging on Web & Desktop
 // ═════════════════════════════════════════════════════════════════════════════
 class _BannerScrollBehavior extends MaterialScrollBehavior {
@@ -586,11 +500,11 @@ class _BannerScrollBehavior extends MaterialScrollBehavior {
 
   @override
   Set<PointerDeviceKind> get dragDevices => {
-        PointerDeviceKind.touch,
-        PointerDeviceKind.mouse,
-        PointerDeviceKind.trackpad,
-        PointerDeviceKind.stylus,
-      };
+    PointerDeviceKind.touch,
+    PointerDeviceKind.mouse,
+    PointerDeviceKind.trackpad,
+    PointerDeviceKind.stylus,
+  };
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -613,7 +527,10 @@ class _BannerSlide extends StatelessWidget {
     if (trimmed.isEmpty) return null;
 
     if (trimmed.startsWith('/')) {
-      final baseWithoutApi = AppConstants.baseUrl.replaceAll(RegExp(r'/api/?$'), '');
+      final baseWithoutApi = AppConstants.baseUrl.replaceAll(
+        RegExp(r'/api/?$'),
+        '',
+      );
       return '$baseWithoutApi$trimmed';
     }
 
@@ -641,12 +558,13 @@ class _BannerSlide extends StatelessWidget {
     final rawUrl = banner['imageUrl']?.toString().trim().isNotEmpty == true
         ? banner['imageUrl'].toString()
         : banner['image_url']?.toString().trim().isNotEmpty == true
-            ? banner['image_url'].toString()
-            : null;
+        ? banner['image_url'].toString()
+        : null;
     final imageUrl = _normalizeImageUrl(rawUrl);
     final title = banner['title']?.toString() ?? '';
     final subtitle = banner['subtitle']?.toString() ?? '';
-    final gradientColors = banner['gradient'] as List<Color>? ??
+    final gradientColors =
+        banner['gradient'] as List<Color>? ??
         [const Color(0xFF1a1a2e), const Color(0xFF16213e)];
 
     final hasOverlayCopy = title.isNotEmpty || subtitle.isNotEmpty;
@@ -668,13 +586,13 @@ class _BannerSlide extends StatelessWidget {
               ),
             ),
             if (imageUrl != null && imageUrl.isNotEmpty)
-              CachedNetworkImage(
+              FocalNetworkImage(
                 imageUrl: imageUrl,
                 fit: BoxFit.cover,
                 alignment: Alignment.center,
                 width: double.infinity,
                 height: double.infinity,
-                fadeInDuration: const Duration(milliseconds: 250),
+
                 placeholder: (_, __) => ColoredBox(
                   color: isDark
                       ? const Color(0xFF1A1A2E)
@@ -767,7 +685,7 @@ class _BannerManagementSheet extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isDark ?  AppColors.darkSurface : Colors.white,
+        color: isDark ? AppColors.darkSurface : Colors.white,
         borderRadius: BorderRadius.circular(20),
       ),
       child: Column(
@@ -783,7 +701,12 @@ class _BannerManagementSheet extends StatelessWidget {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.only(top: 16, left: 20, right: 20, bottom: 35),
+            padding: const EdgeInsets.only(
+              top: 16,
+              left: 20,
+              right: 20,
+              bottom: 35,
+            ),
             child: Column(
               children: [
                 const Text(
@@ -870,7 +793,13 @@ class _SheetOption extends StatelessWidget {
 // ═════════════════════════════════════════════════════════════════════════════
 class _AddBannerDialog extends StatefulWidget {
   final String token;
-  final Future<void> Function(String imageUrl, String title, String subtitle, String linkUrl) onSaved;
+  final Future<void> Function(
+    String imageUrl,
+    String title,
+    String subtitle,
+    String linkUrl,
+  )
+  onSaved;
 
   const _AddBannerDialog({required this.token, required this.onSaved});
 
@@ -900,9 +829,10 @@ class _AddBannerDialogState extends State<_AddBannerDialog>
       vsync: this,
       duration: const Duration(milliseconds: 1400),
     )..repeat();
-    _shimmerAnim = Tween<double>(begin: -1.5, end: 1.5).animate(
-      CurvedAnimation(parent: _shimmerCtrl, curve: Curves.easeInOut),
-    );
+    _shimmerAnim = Tween<double>(
+      begin: -1.5,
+      end: 1.5,
+    ).animate(CurvedAnimation(parent: _shimmerCtrl, curve: Curves.easeInOut));
   }
 
   @override
@@ -925,7 +855,9 @@ class _AddBannerDialogState extends State<_AddBannerDialog>
     try {
       final bytes = await file.readAsBytes();
       final url = await _UploadingImagesHelper.upload(
-        bytes, file.name, widget.token,
+        bytes,
+        file.name,
+        widget.token,
       );
       if (mounted) {
         setState(() {
@@ -974,10 +906,7 @@ class _AddBannerDialogState extends State<_AddBannerDialog>
       child: Dialog(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        insetPadding: const EdgeInsets.symmetric(
-          horizontal: 20,
-          vertical: 24,
-        ),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
         child: Center(
           child: ConstrainedBox(
             constraints: BoxConstraints(
@@ -992,7 +921,9 @@ class _AddBannerDialogState extends State<_AddBannerDialog>
                   borderRadius: BorderRadius.circular(24),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: isDark ? 0.5 : 0.15),
+                      color: Colors.black.withValues(
+                        alpha: isDark ? 0.5 : 0.15,
+                      ),
                       blurRadius: 40,
                       offset: const Offset(0, 20),
                     ),
@@ -1030,8 +961,10 @@ class _AddBannerDialogState extends State<_AddBannerDialog>
                               isDragging: _isDraggingOver,
                               uploadedUrl: _uploadedUrl,
                               shimmerAnim: _shimmerAnim,
-                              onDragEnter: () => setState(() => _isDraggingOver = true),
-                              onDragLeave: () => setState(() => _isDraggingOver = false),
+                              onDragEnter: () =>
+                                  setState(() => _isDraggingOver = true),
+                              onDragLeave: () =>
+                                  setState(() => _isDraggingOver = false),
                               onDrop: (file) async {
                                 setState(() => _isDraggingOver = false);
                                 await _uploadFile(file);
@@ -1044,15 +977,32 @@ class _AddBannerDialogState extends State<_AddBannerDialog>
                             // ── OR divider ──────────────────────────────
                             Row(
                               children: [
-                                Expanded(child: Divider(color: isDark ? AppColors.darkBorder : AppColors.dividerGrey)),
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 10),
-                                  child: Text(
-                                    'or paste URL',
-                                    style: TextStyle(fontSize: 12, color: subColor),
+                                Expanded(
+                                  child: Divider(
+                                    color: isDark
+                                        ? AppColors.darkBorder
+                                        : AppColors.dividerGrey,
                                   ),
                                 ),
-                                Expanded(child: Divider(color: isDark ? AppColors.darkBorder : AppColors.dividerGrey)),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                  ),
+                                  child: Text(
+                                    'or paste URL',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: subColor,
+                                    ),
+                                  ),
+                                ),
+                                Expanded(
+                                  child: Divider(
+                                    color: isDark
+                                        ? AppColors.darkBorder
+                                        : AppColors.dividerGrey,
+                                  ),
+                                ),
                               ],
                             ),
 
@@ -1081,7 +1031,8 @@ class _AddBannerDialogState extends State<_AddBannerDialog>
                                   child: Image.network(
                                     _effectiveUrl!,
                                     fit: BoxFit.cover,
-                                    errorBuilder: (_, __, ___) => _ErrorPreview(isDark: isDark),
+                                    errorBuilder: (_, __, ___) =>
+                                        _ErrorPreview(isDark: isDark),
                                   ),
                                 ),
                               ),
@@ -1142,7 +1093,8 @@ class _AddBannerDialogState extends State<_AddBannerDialog>
                             const SizedBox(height: 8),
                             _StyledField(
                               controller: _linkUrlController,
-                              hint: 'https://example.com or external browser link',
+                              hint:
+                                  'https://example.com or external browser link',
                               icon: LucideIcons.link,
                               isDark: isDark,
                             ),
@@ -1156,27 +1108,37 @@ class _AddBannerDialogState extends State<_AddBannerDialog>
                               child: ElevatedButton(
                                 onPressed:
                                     (_isSaving || _isUploading || !hasImage)
-                                        ? null
-                                        : () async {
-                                            setState(() => _isSaving = true);
-                                            final url = _effectiveUrl!;
-                                            final title = _titleController.text.trim();
-                                            final sub = _subtitleController.text.trim();
-                                            final link = _linkUrlController.text.trim();
-                                            final nav = Navigator.of(context);
-                                            await widget.onSaved(url, title, sub, link);
-                                            if (mounted) nav.pop();
-                                          },
+                                    ? null
+                                    : () async {
+                                        setState(() => _isSaving = true);
+                                        final url = _effectiveUrl!;
+                                        final title = _titleController.text
+                                            .trim();
+                                        final sub = _subtitleController.text
+                                            .trim();
+                                        final link = _linkUrlController.text
+                                            .trim();
+                                        final nav = Navigator.of(context);
+                                        await widget.onSaved(
+                                          url,
+                                          title,
+                                          sub,
+                                          link,
+                                        );
+                                        if (mounted) nav.pop();
+                                      },
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: AppColors.primary,
                                   foregroundColor: AppColors.secondary,
-                                  padding: const EdgeInsets.symmetric(vertical: 16),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 16,
+                                  ),
                                   elevation: 0,
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(14),
                                   ),
-                                  disabledBackgroundColor:
-                                      AppColors.primary.withValues(alpha: 0.35),
+                                  disabledBackgroundColor: AppColors.primary
+                                      .withValues(alpha: 0.35),
                                 ),
                                 child: _isSaving
                                     ? const SizedBox(
@@ -1188,12 +1150,18 @@ class _AddBannerDialogState extends State<_AddBannerDialog>
                                         ),
                                       )
                                     : Row(
-                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
                                         children: [
-                                          const Icon(LucideIcons.imagePlus, size: 17),
+                                          const Icon(
+                                            LucideIcons.imagePlus,
+                                            size: 17,
+                                          ),
                                           const SizedBox(width: 8),
                                           Text(
-                                            hasImage ? 'Save Banner' : 'Add an image first',
+                                            hasImage
+                                                ? 'Save Banner'
+                                                : 'Add an image first',
                                             style: const TextStyle(
                                               fontWeight: FontWeight.w700,
                                               fontSize: 15,
@@ -1210,7 +1178,9 @@ class _AddBannerDialogState extends State<_AddBannerDialog>
                               onPressed: () => Navigator.pop(context),
                               style: TextButton.styleFrom(
                                 foregroundColor: subColor,
-                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                ),
                               ),
                               child: const Text('Cancel'),
                             ),
@@ -1296,7 +1266,9 @@ class _BannerDialogHeader extends StatelessWidget {
                   'Upload a banner image to display on the home screen',
                   style: TextStyle(
                     fontSize: 11.5,
-                    color: isDark ? AppColors.darkTextMuted : AppColors.textMuted,
+                    color: isDark
+                        ? AppColors.darkTextMuted
+                        : AppColors.textMuted,
                   ),
                 ),
               ],
@@ -1304,9 +1276,11 @@ class _BannerDialogHeader extends StatelessWidget {
           ),
           IconButton(
             onPressed: () => Navigator.pop(context),
-            icon: Icon(LucideIcons.x,
-                size: 18,
-                color: isDark ? AppColors.darkTextMuted : AppColors.textMuted),
+            icon: Icon(
+              LucideIcons.x,
+              size: 18,
+              color: isDark ? AppColors.darkTextMuted : AppColors.textMuted,
+            ),
           ),
         ],
       ),
@@ -1350,8 +1324,8 @@ class _BannerDropZone extends StatelessWidget {
     final bgColor = isDragging
         ? AppColors.primary.withValues(alpha: 0.07)
         : (isDark
-            ? Colors.white.withValues(alpha: 0.03)
-            : Colors.grey.withValues(alpha: 0.04));
+              ? Colors.white.withValues(alpha: 0.03)
+              : Colors.grey.withValues(alpha: 0.04));
 
     return DragTarget<Object>(
       onWillAcceptWithDetails: (_) {
@@ -1479,12 +1453,14 @@ class _DropZoneIdle extends StatelessWidget {
             color: isDragging
                 ? AppColors.primary.withValues(alpha: 0.18)
                 : (isDark
-                    ? Colors.white.withValues(alpha: 0.06)
-                    : Colors.grey.withValues(alpha: 0.10)),
+                      ? Colors.white.withValues(alpha: 0.06)
+                      : Colors.grey.withValues(alpha: 0.10)),
             shape: BoxShape.circle,
           ),
           child: Icon(
-            isDragging ? LucideIcons.imageDown : Icons.add_photo_alternate_outlined,
+            isDragging
+                ? LucideIcons.imageDown
+                : Icons.add_photo_alternate_outlined,
             size: 26,
             color: isDragging
                 ? AppColors.primary
@@ -1499,7 +1475,9 @@ class _DropZoneIdle extends StatelessWidget {
             fontWeight: FontWeight.w600,
             color: isDragging
                 ? AppColors.primary
-                : (isDark ? AppColors.darkTextSecondary : AppColors.textPrimaryDark),
+                : (isDark
+                      ? AppColors.darkTextSecondary
+                      : AppColors.textPrimaryDark),
           ),
         ),
         const SizedBox(height: 4),
@@ -1535,8 +1513,11 @@ class _DropZoneIdle extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.search_rounded,
-                    size: 16, color: AppColors.primary),
+                const Icon(
+                  Icons.search_rounded,
+                  size: 16,
+                  color: AppColors.primary,
+                ),
                 const SizedBox(width: 6),
                 const Text(
                   'Browse Files',
@@ -1586,8 +1567,11 @@ class _StyledField extends StatelessWidget {
           fontSize: 13,
           color: isDark ? AppColors.darkTextMuted : AppColors.textHint,
         ),
-        prefixIcon: Icon(icon, size: 16,
-            color: isDark ? AppColors.darkTextMuted : AppColors.textMuted),
+        prefixIcon: Icon(
+          icon,
+          size: 16,
+          color: isDark ? AppColors.darkTextMuted : AppColors.textMuted,
+        ),
         filled: true,
         fillColor: isDark
             ? Colors.white.withValues(alpha: 0.04)
@@ -1608,8 +1592,10 @@ class _StyledField extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: AppColors.primary, width: 1.8),
         ),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 13,
+        ),
         isDense: true,
       ),
     );
@@ -1632,9 +1618,11 @@ class _ErrorPreview extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(LucideIcons.imageOff,
-                size: 28,
-                color: isDark ? AppColors.darkTextMuted : AppColors.textMuted),
+            Icon(
+              LucideIcons.imageOff,
+              size: 28,
+              color: isDark ? AppColors.darkTextMuted : AppColors.textMuted,
+            ),
             const SizedBox(height: 6),
             Text(
               'Could not load image preview',
@@ -1664,8 +1652,9 @@ class _BannerSkeleton extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: AspectRatio(
-        aspectRatio:
-            isMobile ? kHomeBannerAspectMobile : kHomeBannerAspectDesktop,
+        aspectRatio: isMobile
+            ? kHomeBannerAspectMobile
+            : kHomeBannerAspectDesktop,
         child: ClipRRect(
           borderRadius: BorderRadius.circular(kHomeBannerRadius),
           child: ColoredBox(
@@ -1678,4 +1667,3 @@ class _BannerSkeleton extends StatelessWidget {
     );
   }
 }
-

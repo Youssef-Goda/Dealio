@@ -41,7 +41,6 @@ static const List<NavItem> items = [
   NavItem(pageIndex: 2, icon: LucideIcons.shoppingCart, label: 'Cart'),
   NavItem(pageIndex: 3, icon: LucideIcons.heart,        label: 'Favorites'),
   NavItem(pageIndex: 4, icon: LucideIcons.user,         label: 'Profile'),
-  NavItem(pageIndex: 5, icon: LucideIcons.search,       label: 'Search'),
   
   // شاشات الإدارة
   NavItem(pageIndex: 6,  icon: LucideIcons.archive,        label: 'Products',    allowedRoles: AppRoles.productCreators),
