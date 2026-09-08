@@ -13,6 +13,7 @@ import 'package:dealio/data/providers/theme_provider.dart';
 import 'package:dealio/data/providers/wishlist_provider.dart';
 import 'package:dealio/features/cart/screens/cart_screen.dart';
 import 'package:dealio/features/admin/widgets/products_content.dart';
+import 'package:dealio/features/admin/widgets/orders_content.dart';
 import 'package:dealio/features/admin/widgets/user_content.dart';
 import 'package:dealio/features/home/widgets/home_content.dart';
 import 'package:dealio/features/home/widgets/search_screen.dart';
@@ -66,6 +67,7 @@ class _HomeBottomState extends State<HomeBottom> {
       ), // 9 (Moderator)
       const RepaintBoundary(child: PlatformControlScreen()), // 10 (Owner Only)
       const RepaintBoundary(child: SettingsScreen()), // 11
+      const RepaintBoundary(child: OrdersContent()), // 12 (Admin/Owner — Orders Mgt)
     ];
   }
 
@@ -138,7 +140,7 @@ class _HomeBottomState extends State<HomeBottom> {
   }
 
   PreferredSizeWidget _buildMobileAppBar(BuildContext context) {
-    // ⚠️ Must have exactly 11 entries — one per _pages index (0-10)
+    // ⚠️ Must have exactly 13 entries — one per _pages index (0-12)
     const pageTitles = [
       'Home', // 0
       'My Orders', // 1
@@ -152,6 +154,7 @@ class _HomeBottomState extends State<HomeBottom> {
       'Moderation', // 9
       'Control', // 10
       'Settings', // 11
+      'Orders Mgt', // 12
     ];
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
 

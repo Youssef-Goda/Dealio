@@ -45,10 +45,7 @@ class _MyOrdersScreenState extends State<MyOrdersScreen> {
 
   void _navigateToSpecificOrder(String orderId) {
     final provider = context.read<OrdersProvider>();
-    final order = provider.orders.cast<Order?>().firstWhere(
-      (o) => o?.id == orderId,
-      orElse: () => null,
-    );
+    final order = provider.orders.where((o) => o.id == orderId).firstOrNull;
 
     if (order != null) {
       Navigator.of(context).pushNamed('/order-detail', arguments: order);

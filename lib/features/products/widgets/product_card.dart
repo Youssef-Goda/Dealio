@@ -13,6 +13,7 @@ import 'package:flutter_svg/svg.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:provider/provider.dart';
 
+
 // ─── Shimmer / Skeleton Card ──────────────────────────────────────────────────
 class ProductCardSkeleton extends StatefulWidget {
   const ProductCardSkeleton({super.key});
@@ -389,13 +390,7 @@ class _ProductCardState extends State<ProductCard> {
                               textDirection: TextDirection.ltr,
                               child: Consumer<CartProvider>(
                                 builder: (context, cart, _) {
-                                  final CartItem? inCart = cart.items
-                                      .cast<CartItem?>()
-                                      .firstWhere(
-                                        (i) =>
-                                            i?.productId == widget.product.id,
-                                        orElse: () => null,
-                                      );
+                                  final CartItem? inCart = cart.items.where((i) => i.productId == widget.product.id).firstOrNull;
 
                                   if (inCart == null) {
                                     return _CartButton(

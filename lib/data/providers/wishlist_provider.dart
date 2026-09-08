@@ -63,4 +63,20 @@ class WishlistProvider with ChangeNotifier {
     notifyListeners();
     await _save();
   }
+
+  // ─── Sync on login ────────────────────────────────────────────────────────
+
+  /// Called after a successful login to persist any locally-favourited IDs.
+  /// [userId] is accepted to match call-sites but is not needed for local
+  /// SharedPreferences storage.
+  Future<void> syncGuestWishlist(String userId) async {
+    // The local set already holds guest favourites — just persist so they
+    // survive the next restart after the user logs in.
+    await _save();
+  }
+
+  // ─── Alias ────────────────────────────────────────────────────────────────
+
+  /// Alias for [toggle] – used by screens that reference `toggleFavorite`.
+  Future<void> toggleFavorite(String productId) => toggle(productId);
 }

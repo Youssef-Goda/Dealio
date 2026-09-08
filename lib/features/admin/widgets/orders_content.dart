@@ -23,26 +23,19 @@ class _OrdersContentState extends State<OrdersContent> {
   final TextEditingController _searchCtrl = TextEditingController();
   Timer? _debounce;
 
+  static const int _pageSize = 20;
+
   String _selectedStatus = 'All';
   String _selectedGov    = 'All Governorates';
   String _selectedCity   = 'All Cities';
   bool   _focusMode      = false;
-
-  // Current active filter values sent to backend
-  // ignore: unused_field
-  String _activeSearch = '';
-  // ignore: unused_field
-  String _activeStatus = '';
-  // ignore: unused_field
-  String _activeGov    = '';
-  // ignore: unused_field
-  String _activeCity   = '';
+  int    _currentPage    = 1;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _fetch(page: 1);
+      if (mounted) context.read<OrdersProvider>().fetchOrders();
     });
   }
 
@@ -53,54 +46,55 @@ class _OrdersContentState extends State<OrdersContent> {
     super.dispose();
   }
 
-  // ── Centralised fetch call ────────────────────────────────────────────────
+  // ── Fetch all from API (always page 1 — pagination is local) ─────────────
   void _fetch({required int page}) {
+    setState(() => _currentPage = page);
     context.read<OrdersProvider>().fetchOrders();
   }
 
-  // ── Search with 500 ms debounce ───────────────────────────────────────────
+  // ── Search with 400 ms debounce ───────────────────────────────────────────
   void _onSearchChanged(String val) {
     _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 500), () {
+    _debounce = Timer(const Duration(milliseconds: 400), () {
       if (!mounted) return;
-      setState(() => _activeSearch = val.trim());
-      _fetch(page: 1);
+      setState(() => _currentPage = 1);
     });
   }
 
   void _clearSearch() {
     _searchCtrl.clear();
     _debounce?.cancel();
-    setState(() => _activeSearch = '');
-    _fetch(page: 1);
+    setState(() => _currentPage = 1);
   }
 
   // ── Status / geo filter change ────────────────────────────────────────────
-  void _onStatusChanged(String v) {
-    setState(() {
-      _selectedStatus = v;
-      _activeStatus   = v == 'All' ? '' : v.toLowerCase();
-    });
-    _fetch(page: 1);
-  }
+  void _onStatusChanged(String v) => setState(() { _selectedStatus = v; _currentPage = 1; });
+  void _onGovChanged(String v)    => setState(() { _selectedGov = v;  _selectedCity = 'All Cities'; _currentPage = 1; });
+  void _onCityChanged(String v)   => setState(() { _selectedCity = v; _currentPage = 1; });
 
-  void _onGovChanged(String v) {
-    setState(() {
-      _selectedGov  = v;
-      _activeGov    = v == 'All Governorates' ? '' : v;
-      // reset city whenever governorate changes
-      _selectedCity = 'All Cities';
-      _activeCity   = '';
-    });
-    _fetch(page: 1);
-  }
-
-  void _onCityChanged(String v) {
-    setState(() {
-      _selectedCity = v;
-      _activeCity   = v == 'All Cities' ? '' : v;
-    });
-    _fetch(page: 1);
+  // ── Client-side filter + paginate ─────────────────────────────────────────
+  List<Order> _applyFilters(List<Order> all) {
+    final q = _searchCtrl.text.trim().toLowerCase();
+    return all.where((o) {
+      // Search: order id, customer name, phone
+      if (q.isNotEmpty) {
+        final name  = o.shippingAddress?.fullName.toLowerCase() ?? '';
+        final phone = o.shippingAddress?.phone.toLowerCase() ?? '';
+        final id    = o.id.toLowerCase();
+        if (!id.contains(q) && !name.contains(q) && !phone.contains(q)) return false;
+      }
+      // Status
+      if (_selectedStatus != 'All' && o.status.label != _selectedStatus) return false;
+      // Governorate
+      if (_selectedGov != 'All Governorates') {
+        if (o.shippingAddress?.governorate != _selectedGov) return false;
+      }
+      // City
+      if (_selectedCity != 'All Cities') {
+        if (o.shippingAddress?.city != _selectedCity) return false;
+      }
+      return true;
+    }).toList();
   }
 
   @override
@@ -110,6 +104,21 @@ class _OrdersContentState extends State<OrdersContent> {
         final bool isMobile = R.isMobile(context);
         final bool isLandscapeMobile = MediaQuery.of(context).size.height < 600;
         final bool shouldScroll = isMobile || isLandscapeMobile;
+
+        // ── Filtering ───────────────────────────────────────────────────────
+        final filtered = _applyFilters(prov.orders);
+        final totalPages = (filtered.length / _pageSize).ceil().clamp(1, 9999);
+        final safePage   = _currentPage.clamp(1, totalPages);
+        final pageOrders = filtered.skip((safePage - 1) * _pageSize).take(_pageSize).toList();
+
+        // ── Dynamic governorate/city options ────────────────────────────────
+        final govs = <String>{'All Governorates', ...prov.orders
+            .map((o) => o.shippingAddress?.governorate ?? '')
+            .where((g) => g.isNotEmpty)}.toList()..sort();
+        final cities = <String>{'All Cities', ...prov.orders
+            .where((o) => _selectedGov == 'All Governorates' || o.shippingAddress?.governorate == _selectedGov)
+            .map((o) => o.shippingAddress?.city ?? '')
+            .where((c) => c.isNotEmpty)}.toList()..sort();
 
         final Widget content = Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -122,24 +131,24 @@ class _OrdersContentState extends State<OrdersContent> {
               const SizedBox(height: 20),
             ],
             _FilterBar(
-              searchCtrl:       _searchCtrl,
-              selectedStatus:   _selectedStatus,
-              selectedGov:      _selectedGov,
-              selectedCity:     _selectedCity,
-              governorates:     [],
-              cities:           [],
-              currentPage:      1,
-              totalPages:       1,
-              totalOrders:      prov.orders.length,
-              isLoading:        prov.isLoading,
-              focusMode:        _focusMode,
-              onSearchChanged:  _onSearchChanged,
-              onClearSearch:    _clearSearch,
-              onStatusChanged:  _onStatusChanged,
-              onGovChanged:     _onGovChanged,
-              onCityChanged:    _onCityChanged,
-              onPageChanged:    (p) => _fetch(page: p),
-              onToggleFocus:    () => setState(() => _focusMode = !_focusMode),
+              searchCtrl:      _searchCtrl,
+              selectedStatus:  _selectedStatus,
+              selectedGov:     _selectedGov,
+              selectedCity:    _selectedCity,
+              governorates:    govs,
+              cities:          cities,
+              currentPage:     safePage,
+              totalPages:      totalPages,
+              totalOrders:     filtered.length,
+              isLoading:       prov.isLoading,
+              focusMode:       _focusMode,
+              onSearchChanged: _onSearchChanged,
+              onClearSearch:   _clearSearch,
+              onStatusChanged: _onStatusChanged,
+              onGovChanged:    _onGovChanged,
+              onCityChanged:   _onCityChanged,
+              onPageChanged:   (p) => setState(() => _currentPage = p),
+              onToggleFocus:   () => setState(() => _focusMode = !_focusMode),
             ),
             const SizedBox(height: 16),
             shouldScroll
@@ -147,14 +156,14 @@ class _OrdersContentState extends State<OrdersContent> {
                     height: _focusMode
                         ? MediaQuery.of(context).size.height - 140
                         : 450,
-                    child: _Table(orders: prov.orders, prov: prov),
+                    child: _Table(orders: pageOrders, prov: prov),
                   )
-                : Expanded(child: _Table(orders: prov.orders, prov: prov)),
+                : Expanded(child: _Table(orders: pageOrders, prov: prov)),
           ],
         );
 
         return RefreshIndicator(
-          onRefresh: () => Future(() => _fetch(page: 1)),
+          onRefresh: () async => _fetch(page: 1),
           color: AppColors.primary,
           child: Padding(
             padding: R.all(context, 20),

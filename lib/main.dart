@@ -25,6 +25,7 @@ import 'package:dealio/data/providers/settings_provider.dart';
 import 'package:dealio/data/services/notification_service.dart';
 import 'package:dealio/core/theme/app_theme.dart';
 import 'package:dealio/features/admin/screens/admin_dashboard_screen.dart';
+import 'package:dealio/features/admin/screens/admin_orders_screen.dart';
 import 'package:dealio/features/admin/screens/vendor_dashboard_screen.dart';
 import 'package:dealio/features/admin/screens/moderation_dashboard_screen.dart';
 import 'package:dealio/features/auth/screens/forgot_password.dart';
@@ -338,6 +339,11 @@ class MyApp extends StatelessWidget {
               '/admin': (context) => GuardedRoute(
                 allowedRoles: AppRoles.privilegedRoles,
                 child: const AdminDashboardScreen(),
+              ),
+              '/admin/orders': (context) => GuardedRoute(
+                allowedRoles: AppRoles.orderManagers,
+                redirectTo: '/home',
+                child: const AdminOrdersScreen(),
               ),
               // ── Vendor ──────────────────────────────────────────────────────
               '/vendor': (context) => GuardedRoute(

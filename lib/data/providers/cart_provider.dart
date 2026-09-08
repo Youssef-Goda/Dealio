@@ -55,8 +55,8 @@ class CartProvider with ChangeNotifier {
     try {
       final token = await _getToken();
       if (token == null) {
-        _error = 'Not authenticated';
-        debugPrint('❌ [CartProvider] fetchCart → no token, aborting');
+        // Guest mode: retain local cart
+        _setLoading(false);
         return;
       }
 
@@ -133,12 +133,8 @@ class CartProvider with ChangeNotifier {
     try {
       final token = await _getToken();
       if (token == null) {
-        return _rollbackAfterAdd(
-          existingIndex,
-          snapshot,
-          productId,
-          'Not authenticated',
-        );
+        // Guest mode: return null (success) without hitting API
+        return null;
       }
 
       // ✅ Backend expects camelCase: { productId, quantity }
@@ -207,9 +203,8 @@ class CartProvider with ChangeNotifier {
     try {
       final token = await _getToken();
       if (token == null) {
-        _items[index].quantity = oldQty;
-        notifyListeners();
-        return 'Not authenticated';
+        // Guest mode: return null (success) without hitting API
+        return null;
       }
 
       // ✅ Backend expects camelCase: { productId, quantity }
@@ -249,9 +244,8 @@ class CartProvider with ChangeNotifier {
     try {
       final token = await _getToken();
       if (token == null) {
-        _items.insert(index, removed);
-        notifyListeners();
-        return 'Not authenticated';
+        // Guest mode: return null (success) without hitting API
+        return null;
       }
 
       final response = await http.delete(
@@ -277,6 +271,30 @@ class CartProvider with ChangeNotifier {
   }
 
   // ─────────────────────────── clearLocal ──────────────────────
+
+  // ─────────────────────────── syncGuestCart ───────────────────────
+  Future<void> syncGuestCart(String token) async {
+    if (_items.isEmpty) {
+      await fetchCart();
+      return;
+    }
+    _setLoading(true);
+    try {
+      final localItems = List<CartItem>.from(_items);
+      for (final item in localItems) {
+        await http.post(
+          Uri.parse('${AppConstants.baseUrl}/cart/add'),
+          headers: _headers(token),
+          body: jsonEncode({'productId': item.productId, 'quantity': item.quantity}),
+        );
+      }
+      await fetchCart();
+    } catch (e) {
+      debugPrint('⚠️ [CartProvider] syncGuestCart exception: $e');
+    } finally {
+      _setLoading(false);
+    }
+  }
   void clearLocal() {
     _items = [];
     _error = null;

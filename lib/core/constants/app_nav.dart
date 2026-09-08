@@ -44,6 +44,7 @@ static const List<NavItem> items = [
   
   // شاشات الإدارة
   NavItem(pageIndex: 6,  icon: LucideIcons.archive,        label: 'Products',    allowedRoles: AppRoles.productCreators),
+  NavItem(pageIndex: 12, icon: LucideIcons.clipboardList,  label: 'Orders Mgt',  allowedRoles: AppRoles.orderManagers),
   // Analytics: owner, admin, vendor — admin added for platform-wide view
   NavItem(pageIndex: 8,  icon: LucideIcons.chartBarBig,    label: 'Analytics',   allowedRoles: [AppRoles.owner, AppRoles.admin, AppRoles.vendor]),
   NavItem(pageIndex: 9,  icon: LucideIcons.shieldAlert,    label: 'Moderation',  allowedRoles: AppRoles.moderators),
