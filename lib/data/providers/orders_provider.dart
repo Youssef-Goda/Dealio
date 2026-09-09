@@ -38,8 +38,7 @@ class OrdersProvider with ChangeNotifier {
         final map = jsonDecode(raw) as Map<String, dynamic>;
         // Handle both flat and nested { data: { accessToken, user: {} } }
         final dataMap = (map['data'] as Map<String, dynamic>?) ?? map;
-        final userMap =
-            (dataMap['user'] as Map<String, dynamic>?) ?? dataMap;
+        final userMap = (dataMap['user'] as Map<String, dynamic>?) ?? dataMap;
         final fallback =
             dataMap['accessToken']?.toString() ??
             userMap['accessToken']?.toString();
@@ -62,10 +61,10 @@ class OrdersProvider with ChangeNotifier {
   }
 
   Map<String, String> _authHeaders(String token) => {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'Authorization': 'Bearer $token',
-      };
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+    'Authorization': 'Bearer $token',
+  };
 
   // ─────────────────────────── fetchOrders ─────────────────────
   /// GET /api/orders — authenticated via JWT in SharedPreferences.
@@ -86,9 +85,7 @@ class OrdersProvider with ChangeNotifier {
         headers: _authHeaders(token),
       );
 
-      debugPrint(
-        '📡 [OrdersProvider] GET /orders → ${response.statusCode}',
-      );
+      debugPrint('📡 [OrdersProvider] GET /orders → ${response.statusCode}');
 
       if (response.statusCode == 200) {
         final body = jsonDecode(response.body) as Map<String, dynamic>;
@@ -96,9 +93,7 @@ class OrdersProvider with ChangeNotifier {
         _orders = raw
             .map((e) => Order.fromJson(e as Map<String, dynamic>))
             .toList();
-        debugPrint(
-          '✅ [OrdersProvider] fetchOrders → ${_orders.length} orders',
-        );
+        debugPrint('✅ [OrdersProvider] fetchOrders → ${_orders.length} orders');
       } else {
         final body = _tryDecode(response.body);
         _error =
@@ -156,7 +151,8 @@ class OrdersProvider with ChangeNotifier {
         debugPrint('✅ [OrdersProvider] cancelOrder success for $orderId');
       } else {
         final body = _tryDecode(response.body);
-        final msg = body?['message']?.toString() ??
+        final msg =
+            body?['message']?.toString() ??
             'Failed to cancel order (${response.statusCode})';
         throw Exception(msg);
       }
@@ -166,6 +162,44 @@ class OrdersProvider with ChangeNotifier {
       rethrow;
     } finally {
       _setLoading(false);
+    }
+  }
+
+  // ──────────────────── updateOrderStatus ──────────────────────
+  /// PATCH /api/orders/:id/status  (admin/owner/moderator only).
+  /// Sends the new status as a lowercase string matching the backend
+  /// VALID_STATUSES list.  Patches the order in-place in _orders and
+  /// notifies listeners so the table row updates immediately.
+  Future<void> updateOrderStatus(String orderId, OrderStatus newStatus) async {
+    final token = await _getToken();
+    if (token == null) throw Exception('You are not logged in.');
+
+    final response = await http.patch(
+      Uri.parse('${AppConstants.baseUrl}/orders/$orderId/status'),
+      headers: _authHeaders(token),
+      body: jsonEncode({'status': newStatus.name}), // e.g. "shipped"
+    );
+
+    debugPrint(
+      '📡 [OrdersProvider] PATCH /orders/$orderId/status '
+      '→ ${response.statusCode}: ${response.body}',
+    );
+
+    if (response.statusCode == 200) {
+      // PATCH response is a thin Supabase row with no joins (no shipping_addresses,
+      // no order_items). Do NOT rebuild from JSON — that wipes customer/address/items.
+      // Instead patch only the status onto the existing in-memory Order.
+      final idx = _orders.indexWhere((o) => o.id == orderId);
+      if (idx != -1) {
+        _orders[idx] = _orders[idx].copyWithStatus(newStatus);
+        notifyListeners();
+      }
+    } else {
+      final body = _tryDecode(response.body);
+      final msg =
+          body?['message']?.toString() ??
+          'Failed to update status (${response.statusCode})';
+      throw Exception(msg);
     }
   }
 

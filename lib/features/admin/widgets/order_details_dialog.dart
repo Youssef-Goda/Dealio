@@ -1,17 +1,13 @@
 import 'package:dealio/core/constants/colors.dart';
+import 'package:dealio/core/utils/responsive_helper.dart';
+import 'package:dealio/data/models/order_item_model.dart';
 import 'package:dealio/data/models/order_model.dart';
+import 'package:dealio/data/providers/orders_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
-
-// ─── Issue 4 note ─────────────────────────────────────────────────────────────
-// The backend VALID_STATUSES = ['pending','confirmed','processing','shipped',
-// 'delivered','cancelled','refunded'] — all lowercase. The Dart enum .name
-// already produces lowercase strings so this should match fine.
-// If the DB has a text CHECK constraint rejecting 'processing', the backend
-// must handle that via VALID_STATUSES — we keep the Dart enum name as-is.
-// ──────────────────────────────────────────────────────────────────────────────
+import 'package:provider/provider.dart';
 
 class OrderDetailsDialog extends StatefulWidget {
   final Order order;
@@ -23,7 +19,7 @@ class OrderDetailsDialog extends StatefulWidget {
 
 class _OrderDetailsDialogState extends State<OrderDetailsDialog> {
   late OrderStatus _currentStatus;
-  final bool _isUpdating = false;
+  bool _isUpdating = false;
   bool _isCopied = false;
 
   @override
@@ -33,7 +29,31 @@ class _OrderDetailsDialogState extends State<OrderDetailsDialog> {
   }
 
   Future<void> _updateStatus(OrderStatus newStatus) async {
-    _showSnack('Status update not supported by current provider.', AppColors.errorRed);
+    if (_isUpdating || newStatus == _currentStatus) return;
+    final prev = _currentStatus;
+    setState(() {
+      _isUpdating = true;
+      _currentStatus = newStatus; // optimistic update
+    });
+    try {
+      await context.read<OrdersProvider>().updateOrderStatus(
+        widget.order.id,
+        newStatus,
+      );
+      if (mounted) {
+        _showSnack(
+          'Status updated to ${newStatus.label}',
+          AppColors.successGreen,
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _currentStatus = prev); // rollback on error
+        _showSnack('Failed to update status: $e', AppColors.errorRed);
+      }
+    } finally {
+      if (mounted) setState(() => _isUpdating = false);
+    }
   }
 
   void _showSnack(String msg, Color color) {
@@ -41,14 +61,17 @@ class _OrderDetailsDialogState extends State<OrderDetailsDialog> {
       SnackBar(
         content: Text(
           msg,
-          style: const TextStyle(
-            color: Colors.white,
+          style: TextStyle(
+            color: AppColors.white,
             fontWeight: FontWeight.w500,
+            fontSize: R.font(context, 13),
           ),
         ),
         backgroundColor: color,
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(R.r(context, 10)),
+        ),
         duration: const Duration(seconds: 3),
       ),
     );
@@ -61,9 +84,9 @@ class _OrderDetailsDialogState extends State<OrderDetailsDialog> {
       case OrderStatus.confirmed:
         return AppColors.infoBlue;
       case OrderStatus.processing:
-        return const Color(0xFF8B5CF6);
+        return AppColors.adminPurple;
       case OrderStatus.shipped:
-        return const Color(0xFF06B6D4);
+        return AppColors.primary;
       case OrderStatus.delivered:
         return AppColors.successGreen;
       case OrderStatus.cancelled:
@@ -71,13 +94,54 @@ class _OrderDetailsDialogState extends State<OrderDetailsDialog> {
     }
   }
 
+  // Color _paymentColor(PaymentMethod m) {
+  //   switch (m) {
+  //     case PaymentMethod.cod:
+  //       return AppColors.warningAmber;
+  //     case PaymentMethod.card:
+  //       return AppColors.adminPurple;
+  //     case PaymentMethod.online:
+  //       return AppColors.infoBlue;
+  //     case PaymentMethod.wallet:
+  //       return AppColors.primary;
+  //     case PaymentMethod.cash:
+  //       return AppColors.successGreen;
+  //   }
+  // }
+
+  Color _paymentColor(PaymentMethod m) {
+    switch (m) {
+      case PaymentMethod.cod:
+        return AppColors.warningAmber;
+      case PaymentMethod.card:
+      case PaymentMethod.online:
+        return AppColors.adminPurple;
+      case PaymentMethod.wallet:
+        return AppColors.infoBlue;
+      case PaymentMethod.cash:
+        return AppColors.successGreen;
+    }
+  }
+
+  IconData _paymentIcon(PaymentMethod m) {
+    switch (m) {
+      case PaymentMethod.cod:
+        return LucideIcons.banknote;
+      case PaymentMethod.card:
+      case PaymentMethod.online:
+        return LucideIcons.creditCard;
+      case PaymentMethod.wallet:
+        return LucideIcons.wallet;
+      case PaymentMethod.cash:
+        return LucideIcons.coins;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final order = widget.order;
-    
 
-    // Issue 3: Properly resolve customer name and address
     final customerName = (order.shippingAddress?.fullName.isNotEmpty == true)
         ? order.shippingAddress!.fullName
         : 'Unknown';
@@ -95,23 +159,23 @@ class _OrderDetailsDialogState extends State<OrderDetailsDialog> {
         ? addrParts.join(', ')
         : 'No address on file';
 
-    final surfaceColor = isDark ? const Color(0xFF1A1D27) : Colors.white;
-    final sectionBg = isDark
-        ? Colors.white.withValues(alpha: 0.03)
-        : const Color(0xFFF8F9FB);
+    final surfaceColor = isDark
+        ? AppColors.darkSurface
+        : Theme.of(context).cardColor;
+    final sectionBg = isDark ? AppColors.darkBackground : AppColors.fillColor;
     final borderColor = isDark
-        ? Colors.white.withValues(alpha: 0.06)
-        : const Color(0xFFE8ECF0);
-    final labelColor = isDark ? Colors.white38 : Colors.black38;
-    final valueColor = isDark ? Colors.white : const Color(0xFF1A1D27);
+        ? AppColors.darkBorder
+        : Colors.black.withOpacity(0.06);
+    final labelColor = isDark
+        ? AppColors.darkTextSecondary
+        : AppColors.textMuted;
+    final valueColor = isDark ? AppColors.darkTextPrimary : AppColors.secondary;
 
     final statusColor = _statusColor(_currentStatus);
 
-
-
     return Dialog(
       backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+      insetPadding: R.symmetric(context, horizontal: 20, vertical: 24),
       child: Container(
         width: 640,
         constraints: BoxConstraints(
@@ -119,12 +183,12 @@ class _OrderDetailsDialogState extends State<OrderDetailsDialog> {
         ),
         decoration: BoxDecoration(
           color: surfaceColor,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(R.r(context, 20)),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: isDark ? 0.5 : 0.12),
-              blurRadius: 40,
-              offset: const Offset(0, 16),
+              color: Colors.black.withOpacity(isDark ? 0.4 : 0.08),
+              blurRadius: R.r(context, 30),
+              offset: const Offset(0, 12),
             ),
           ],
           border: Border.all(color: borderColor, width: 1),
@@ -134,25 +198,25 @@ class _OrderDetailsDialogState extends State<OrderDetailsDialog> {
           children: [
             // ── HEADER ────────────────────────────────────────────────────
             Container(
-              padding: const EdgeInsets.fromLTRB(24, 20, 16, 20),
+              padding: R.symmetric(context, horizontal: 20, vertical: 16),
               decoration: BoxDecoration(
                 border: Border(bottom: BorderSide(color: borderColor)),
               ),
               child: Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.all(10),
+                    padding: R.all(context, 10),
                     decoration: BoxDecoration(
-                      color: AppColors.primary.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(12),
+                      color: AppColors.primary.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(R.r(context, 12)),
                     ),
-                    child: const Icon(
+                    child: Icon(
                       LucideIcons.receiptText,
-                      size: 20,
+                      size: R.font(context, 20),
                       color: AppColors.primary,
                     ),
                   ),
-                  const SizedBox(width: 14),
+                  SizedBox(width: R.w(context, 12)),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -160,54 +224,58 @@ class _OrderDetailsDialogState extends State<OrderDetailsDialog> {
                         Text(
                           'Order Details',
                           style: TextStyle(
-                            fontSize: 18,
+                            fontSize: R.font(context, 17),
                             fontWeight: FontWeight.bold,
                             color: valueColor,
                           ),
                         ),
+                        SizedBox(height: R.h(context, 2)),
                         Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Text(
                               '#${order.shortId}',
                               style: TextStyle(
-                                fontSize: 12,
-                                color: AppColors.primary.withValues(alpha: 0.8),
+                                fontSize: R.font(context, 12),
+                                color: AppColors.primary,
                                 fontFamily: 'monospace',
                                 fontWeight: FontWeight.w600,
                                 letterSpacing: 0.5,
                               ),
                             ),
-                            const SizedBox(width: 6),
+                            SizedBox(width: R.w(context, 6)),
                             InkWell(
-                              borderRadius: BorderRadius.circular(4),
+                              borderRadius: BorderRadius.circular(
+                                R.r(context, 4),
+                              ),
                               onTap: () async {
                                 await Clipboard.setData(
                                   ClipboardData(text: order.shortId),
                                 );
                                 setState(() => _isCopied = true);
                                 Future.delayed(const Duration(seconds: 2), () {
-                                  if (mounted)
+                                  if (mounted) {
                                     setState(() => _isCopied = false);
+                                  }
                                 });
                               },
                               child: Padding(
-                                padding: const EdgeInsets.all(2.0),
+                                padding: R.all(context, 2),
                                 child: AnimatedSwitcher(
                                   duration: const Duration(milliseconds: 200),
                                   child: _isCopied
-                                      ? const Icon(
-                                          Icons.check_rounded,
-                                          key: ValueKey('check'),
-                                          size: 14,
-                                          color: Colors.green,
+                                      ? Icon(
+                                          LucideIcons.check,
+                                          key: const ValueKey('check'),
+                                          size: R.font(context, 14),
+                                          color: AppColors.successGreen,
                                         )
                                       : Icon(
-                                          Icons.copy_rounded,
+                                          LucideIcons.copy,
                                           key: const ValueKey('copy'),
-                                          size: 14,
-                                          color: AppColors.primary.withValues(
-                                            alpha: 0.6,
+                                          size: R.font(context, 14),
+                                          color: AppColors.primary.withOpacity(
+                                            0.7,
                                           ),
                                         ),
                                 ),
@@ -218,28 +286,19 @@ class _OrderDetailsDialogState extends State<OrderDetailsDialog> {
                       ],
                     ),
                   ),
-                  // const SizedBox(width: 14),
-                  // Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  //   Text('Order Details', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: valueColor)),
-                  //   Text('#${order.shortId}', style: TextStyle(fontSize: 12, color: AppColors.primary.withValues(alpha: 0.8), fontFamily: 'monospace', fontWeight: FontWeight.w600, letterSpacing: 0.5)),
-                  // ])),
-                  // Status chip + dropdown
+
+                  // Status Dropdown Badge
                   Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
+                    padding: R.symmetric(context, horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
-                      color: statusColor.withValues(alpha: isDark ? 0.1 : 0.07),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: statusColor.withValues(alpha: 0.35),
-                      ),
+                      color: statusColor.withOpacity(isDark ? 0.12 : 0.06),
+                      borderRadius: BorderRadius.circular(R.r(context, 20)),
+                      border: Border.all(color: statusColor.withOpacity(0.35)),
                     ),
                     child: _isUpdating
                         ? SizedBox(
-                            width: 20,
-                            height: 20,
+                            width: R.r(context, 18),
+                            height: R.r(context, 18),
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
                               color: statusColor,
@@ -251,16 +310,16 @@ class _OrderDetailsDialogState extends State<OrderDetailsDialog> {
                               isDense: true,
                               icon: Icon(
                                 LucideIcons.chevronDown,
-                                size: 13,
+                                size: R.font(context, 13),
                                 color: statusColor,
                               ),
-                              dropdownColor: isDark
-                                  ? const Color(0xFF1E2130)
-                                  : Colors.white,
-                              borderRadius: BorderRadius.circular(14),
+                              dropdownColor: surfaceColor,
+                              borderRadius: BorderRadius.circular(
+                                R.r(context, 14),
+                              ),
                               style: TextStyle(
                                 color: statusColor,
-                                fontSize: 12,
+                                fontSize: R.font(context, 12),
                                 fontWeight: FontWeight.bold,
                                 letterSpacing: 0.3,
                               ),
@@ -275,23 +334,20 @@ class _OrderDetailsDialogState extends State<OrderDetailsDialog> {
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
                                           Container(
-                                            width: 8,
-                                            height: 8,
+                                            width: R.r(context, 8),
+                                            height: R.r(context, 8),
                                             decoration: BoxDecoration(
                                               color: _statusColor(s),
-                                              borderRadius:
-                                                  BorderRadius.circular(4),
+                                              shape: BoxShape.circle,
                                             ),
                                           ),
-                                          const SizedBox(width: 8),
+                                          SizedBox(width: R.w(context, 8)),
                                           Text(
                                             s.label,
                                             style: TextStyle(
-                                              fontSize: 12,
+                                              fontSize: R.font(context, 12),
                                               fontWeight: FontWeight.w600,
-                                              color: isDark
-                                                  ? Colors.white
-                                                  : const Color(0xFF1A1D27),
+                                              color: valueColor,
                                             ),
                                           ),
                                         ],
@@ -302,22 +358,23 @@ class _OrderDetailsDialogState extends State<OrderDetailsDialog> {
                             ),
                           ),
                   ),
-                  const SizedBox(width: 8),
+
+                  SizedBox(width: R.w(context, 8)),
                   IconButton(
                     icon: Icon(
                       LucideIcons.x,
-                      size: 18,
-                      color: isDark ? Colors.white54 : Colors.black45,
+                      size: R.font(context, 18),
+                      color: labelColor,
                     ),
                     onPressed: () => Navigator.pop(context),
                     style: IconButton.styleFrom(
                       backgroundColor: isDark
-                          ? Colors.white.withValues(alpha: 0.05)
-                          : Colors.black.withValues(alpha: 0.04),
+                          ? Colors.white.withOpacity(0.05)
+                          : Colors.black.withOpacity(0.04),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(R.r(context, 8)),
                       ),
-                      padding: const EdgeInsets.all(6),
+                      padding: R.all(context, 6),
                     ),
                   ),
                 ],
@@ -327,7 +384,7 @@ class _OrderDetailsDialogState extends State<OrderDetailsDialog> {
             // ── BODY ──────────────────────────────────────────────────────
             Flexible(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
+                padding: R.all(context, 20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -341,7 +398,7 @@ class _OrderDetailsDialogState extends State<OrderDetailsDialog> {
                             value: order.createdAt != null
                                 ? DateFormat(
                                     'dd MMM yyyy, HH:mm',
-                                  ).format(order.createdAt!)
+                                  ).format(order.createdAt!.toLocal())
                                 : 'N/A',
                             isDark: isDark,
                             labelColor: labelColor,
@@ -350,7 +407,7 @@ class _OrderDetailsDialogState extends State<OrderDetailsDialog> {
                             sectionBg: sectionBg,
                           ),
                         ),
-                        const SizedBox(width: 12),
+                        SizedBox(width: R.w(context, 12)),
                         Expanded(
                           child: _MetaCard(
                             icon: _paymentIcon(order.paymentMethod),
@@ -366,7 +423,7 @@ class _OrderDetailsDialogState extends State<OrderDetailsDialog> {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 20),
+                    SizedBox(height: R.h(context, 18)),
 
                     // ── CUSTOMER & SHIPPING ────────────────────────────────
                     _SectionHeader(
@@ -374,12 +431,12 @@ class _OrderDetailsDialogState extends State<OrderDetailsDialog> {
                       icon: LucideIcons.user,
                       valueColor: valueColor,
                     ),
-                    const SizedBox(height: 10),
+                    SizedBox(height: R.h(context, 10)),
                     Container(
-                      padding: const EdgeInsets.all(16),
+                      padding: R.all(context, 16),
                       decoration: BoxDecoration(
                         color: sectionBg,
-                        borderRadius: BorderRadius.circular(14),
+                        borderRadius: BorderRadius.circular(R.r(context, 14)),
                         border: Border.all(color: borderColor),
                       ),
                       child: Column(
@@ -392,7 +449,10 @@ class _OrderDetailsDialogState extends State<OrderDetailsDialog> {
                             valueColor: valueColor,
                           ),
                           if (customerEmail != null) ...[
-                            Divider(height: 20, color: borderColor),
+                            Divider(
+                              height: R.h(context, 20),
+                              color: borderColor,
+                            ),
                             _InfoRow(
                               icon: LucideIcons.mail,
                               label: 'Email',
@@ -402,7 +462,10 @@ class _OrderDetailsDialogState extends State<OrderDetailsDialog> {
                             ),
                           ],
                           if (customerPhone != null) ...[
-                            Divider(height: 20, color: borderColor),
+                            Divider(
+                              height: R.h(context, 20),
+                              color: borderColor,
+                            ),
                             _InfoRow(
                               icon: LucideIcons.phone,
                               label: 'Phone',
@@ -411,7 +474,7 @@ class _OrderDetailsDialogState extends State<OrderDetailsDialog> {
                               valueColor: valueColor,
                             ),
                           ],
-                          Divider(height: 20, color: borderColor),
+                          Divider(height: R.h(context, 20), color: borderColor),
                           _InfoRow(
                             icon: LucideIcons.mapPin,
                             label: 'Address',
@@ -421,7 +484,10 @@ class _OrderDetailsDialogState extends State<OrderDetailsDialog> {
                           ),
                           if (order.notes != null &&
                               order.notes!.isNotEmpty) ...[
-                            Divider(height: 20, color: borderColor),
+                            Divider(
+                              height: R.h(context, 20),
+                              color: borderColor,
+                            ),
                             _InfoRow(
                               icon: LucideIcons.messageSquare,
                               label: 'Notes',
@@ -433,30 +499,30 @@ class _OrderDetailsDialogState extends State<OrderDetailsDialog> {
                         ],
                       ),
                     ),
-                    const SizedBox(height: 20),
+                    SizedBox(height: R.h(context, 18)),
 
                     // ── ITEMS ──────────────────────────────────────────────
                     _SectionHeader(
                       label: 'Purchased Items (${order.items.length})',
-                      icon: LucideIcons.shoppingCart,
+                      icon: LucideIcons.shoppingBag,
                       valueColor: valueColor,
                     ),
-                    const SizedBox(height: 10),
+                    SizedBox(height: R.h(context, 10)),
                     Container(
                       decoration: BoxDecoration(
                         color: sectionBg,
-                        borderRadius: BorderRadius.circular(14),
+                        borderRadius: BorderRadius.circular(R.r(context, 14)),
                         border: Border.all(color: borderColor),
                       ),
                       clipBehavior: Clip.hardEdge,
                       child: order.items.isEmpty
                           ? Padding(
-                              padding: const EdgeInsets.all(16),
+                              padding: R.all(context, 16),
                               child: Text(
                                 'No item details available.',
                                 style: TextStyle(
                                   color: labelColor,
-                                  fontSize: 13,
+                                  fontSize: R.font(context, 13),
                                 ),
                               ),
                             )
@@ -479,14 +545,14 @@ class _OrderDetailsDialogState extends State<OrderDetailsDialog> {
                               ],
                             ),
                     ),
-                    const SizedBox(height: 20),
+                    SizedBox(height: R.h(context, 18)),
 
                     // ── TOTALS ─────────────────────────────────────────────
                     Container(
-                      padding: const EdgeInsets.all(16),
+                      padding: R.all(context, 16),
                       decoration: BoxDecoration(
                         color: sectionBg,
-                        borderRadius: BorderRadius.circular(14),
+                        borderRadius: BorderRadius.circular(R.r(context, 14)),
                         border: Border.all(color: borderColor),
                       ),
                       child: Column(
@@ -497,20 +563,23 @@ class _OrderDetailsDialogState extends State<OrderDetailsDialog> {
                             labelColor: labelColor,
                             valueColor: valueColor,
                           ),
-                          const SizedBox(height: 8),
+                          SizedBox(height: R.h(context, 8)),
                           _TotalRow(
                             label: 'Tax / Fees',
                             value: order.tax,
                             labelColor: labelColor,
                             valueColor: valueColor,
                           ),
-                          Divider(height: 24, color: borderColor),
+                          Padding(
+                            padding: R.symmetric(context, vertical: 10),
+                            child: Divider(height: 1, color: borderColor),
+                          ),
                           _TotalRow(
                             label: 'Grand Total',
                             value: order.total,
                             isTotal: true,
                             labelColor: labelColor,
-                            valueColor: AppColors.successGreen,
+                            valueColor: AppColors.primary,
                           ),
                         ],
                       ),
@@ -523,34 +592,6 @@ class _OrderDetailsDialogState extends State<OrderDetailsDialog> {
         ),
       ),
     );
-  }
-
-  IconData _paymentIcon(PaymentMethod m) {
-    switch (m) {
-      case PaymentMethod.cod:
-        return LucideIcons.banknote;
-      case PaymentMethod.card:
-      case PaymentMethod.online:
-        return LucideIcons.creditCard;
-      case PaymentMethod.wallet:
-        return LucideIcons.wallet;
-      case PaymentMethod.cash:
-        return LucideIcons.coins;
-    }
-  }
-
-  Color _paymentColor(PaymentMethod m) {
-    switch (m) {
-      case PaymentMethod.cod:
-        return AppColors.warningAmber;
-      case PaymentMethod.card:
-      case PaymentMethod.online:
-        return const Color(0xFF8B5CF6);
-      case PaymentMethod.wallet:
-        return const Color(0xFF06B6D4);
-      case PaymentMethod.cash:
-        return AppColors.successGreen;
-    }
   }
 }
 
@@ -572,13 +613,13 @@ class _SectionHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Icon(icon, size: 15, color: AppColors.primary),
-        const SizedBox(width: 8),
+        Icon(icon, size: R.font(context, 15), color: AppColors.primary),
+        SizedBox(width: R.w(context, 8)),
         Text(
           label,
           style: TextStyle(
             fontWeight: FontWeight.bold,
-            fontSize: 14,
+            fontSize: R.font(context, 14),
             color: valueColor,
           ),
         ),
@@ -614,23 +655,23 @@ class _MetaCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final iColor = iconColor ?? AppColors.primary;
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: R.all(context, 12),
       decoration: BoxDecoration(
         color: sectionBg,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(R.r(context, 12)),
         border: Border.all(color: borderColor),
       ),
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(8),
+            padding: R.all(context, 8),
             decoration: BoxDecoration(
-              color: iColor.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(8),
+              color: iColor.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(R.r(context, 8)),
             ),
-            child: Icon(icon, size: 16, color: iColor),
+            child: Icon(icon, size: R.font(context, 16), color: iColor),
           ),
-          const SizedBox(width: 12),
+          SizedBox(width: R.w(context, 10)),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -638,16 +679,16 @@ class _MetaCard extends StatelessWidget {
                 Text(
                   label,
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: R.font(context, 11),
                     color: labelColor,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
-                const SizedBox(height: 3),
+                SizedBox(height: R.h(context, 2)),
                 Text(
                   value,
                   style: TextStyle(
-                    fontSize: 13,
+                    fontSize: R.font(context, 13),
                     fontWeight: FontWeight.w600,
                     color: valueColor,
                   ),
@@ -669,6 +710,7 @@ class _InfoRow extends StatelessWidget {
   final String value;
   final Color labelColor;
   final Color valueColor;
+
   const _InfoRow({
     required this.icon,
     required this.label,
@@ -682,14 +724,14 @@ class _InfoRow extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 15, color: labelColor),
-        const SizedBox(width: 10),
+        Icon(icon, size: R.font(context, 15), color: labelColor),
+        SizedBox(width: R.w(context, 10)),
         SizedBox(
-          width: 70,
+          width: R.w(context, 70),
           child: Text(
             label,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: R.font(context, 12),
               color: labelColor,
               fontWeight: FontWeight.w500,
             ),
@@ -699,7 +741,7 @@ class _InfoRow extends StatelessWidget {
           child: Text(
             value,
             style: TextStyle(
-              fontSize: 13,
+              fontSize: R.font(context, 13),
               fontWeight: FontWeight.w600,
               color: valueColor,
             ),
@@ -711,10 +753,11 @@ class _InfoRow extends StatelessWidget {
 }
 
 class _ItemRow extends StatelessWidget {
-  final dynamic item;
+  final OrderItem item;
   final bool isDark;
   final Color valueColor;
   final Color labelColor;
+
   const _ItemRow({
     required this.item,
     required this.isDark,
@@ -725,28 +768,35 @@ class _ItemRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      padding: R.symmetric(context, horizontal: 14, vertical: 12),
       child: Row(
         children: [
           ClipRRect(
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(R.r(context, 8)),
             child: Container(
-              width: 52,
-              height: 52,
+              width: R.r(context, 48),
+              height: R.r(context, 48),
               color: isDark
-                  ? Colors.white.withValues(alpha: 0.05)
-                  : Colors.black.withValues(alpha: 0.04),
-              child: item.imageUrl != null
+                  ? Colors.white.withOpacity(0.05)
+                  : Colors.black.withOpacity(0.04),
+              child: item.imageUrl != null && item.imageUrl!.isNotEmpty
                   ? Image.network(
                       item.imageUrl!,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) =>
-                          Icon(LucideIcons.image, size: 22, color: labelColor),
+                      errorBuilder: (_, __, ___) => Icon(
+                        LucideIcons.image,
+                        size: R.font(context, 20),
+                        color: labelColor,
+                      ),
                     )
-                  : Icon(LucideIcons.image, size: 22, color: labelColor),
+                  : Icon(
+                      LucideIcons.package,
+                      size: R.font(context, 20),
+                      color: labelColor,
+                    ),
             ),
           ),
-          const SizedBox(width: 14),
+          SizedBox(width: R.w(context, 12)),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -755,27 +805,30 @@ class _ItemRow extends StatelessWidget {
                   item.productName,
                   style: TextStyle(
                     fontWeight: FontWeight.w600,
-                    fontSize: 13,
+                    fontSize: R.font(context, 13),
                     color: valueColor,
                   ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 3),
+                SizedBox(height: R.h(context, 2)),
                 Text(
                   'Qty: ${item.quantity}',
-                  style: TextStyle(fontSize: 12, color: labelColor),
+                  style: TextStyle(
+                    fontSize: R.font(context, 12),
+                    color: labelColor,
+                  ),
                 ),
               ],
             ),
           ),
-          const SizedBox(width: 12),
+          SizedBox(width: R.w(context, 12)),
           Text(
             '${NumberFormat('#,###.##').format(item.unitPrice * item.quantity)} EGP',
             style: TextStyle(
               fontWeight: FontWeight.bold,
-              fontSize: 13,
-              color: valueColor,
+              fontSize: R.font(context, 13),
+              color: AppColors.primary,
             ),
           ),
         ],
@@ -790,6 +843,7 @@ class _TotalRow extends StatelessWidget {
   final bool isTotal;
   final Color labelColor;
   final Color valueColor;
+
   const _TotalRow({
     required this.label,
     required this.value,
@@ -806,7 +860,7 @@ class _TotalRow extends StatelessWidget {
         Text(
           label,
           style: TextStyle(
-            fontSize: isTotal ? 15 : 13,
+            fontSize: isTotal ? R.font(context, 15) : R.font(context, 13),
             fontWeight: isTotal ? FontWeight.bold : FontWeight.normal,
             color: isTotal ? valueColor : labelColor,
           ),
@@ -814,8 +868,8 @@ class _TotalRow extends StatelessWidget {
         Text(
           '${NumberFormat('#,###.##').format(value)} EGP',
           style: TextStyle(
-            fontSize: isTotal ? 17 : 13,
-            fontWeight: isTotal ? FontWeight.bold : FontWeight.w500,
+            fontSize: isTotal ? R.font(context, 17) : R.font(context, 13),
+            fontWeight: isTotal ? FontWeight.bold : FontWeight.w600,
             color: valueColor,
           ),
         ),

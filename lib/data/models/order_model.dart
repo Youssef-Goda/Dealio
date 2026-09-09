@@ -1,7 +1,14 @@
 import 'package:dealio/data/models/order_item_model.dart';
 import 'package:dealio/data/models/shipping_address_model.dart';
 
-enum OrderStatus { pending, confirmed, processing, shipped, delivered, cancelled }
+enum OrderStatus {
+  pending,
+  confirmed,
+  processing,
+  shipped,
+  delivered,
+  cancelled,
+}
 
 extension OrderStatusX on OrderStatus {
   String get label {
@@ -87,7 +94,8 @@ extension PaymentMethodX on PaymentMethod {
   static PaymentMethod fromString(String s) {
     final lower = s.toLowerCase();
     if (lower == 'card' || lower == 'online') return PaymentMethod.card;
-    if (lower == 'wallet' || lower == 'mobile_wallet') return PaymentMethod.wallet;
+    if (lower == 'wallet' || lower == 'mobile_wallet')
+      return PaymentMethod.wallet;
     if (lower == 'cash' || lower == 'fawry') return PaymentMethod.cash;
     return PaymentMethod.cod;
   }
@@ -154,4 +162,22 @@ class Order {
   String get shortId => id.length >= 8
       ? id.substring(id.length - 8).toUpperCase()
       : id.toUpperCase();
+
+  /// Returns a copy with only the status field replaced.
+  /// Used by updateOrderStatus to avoid losing address/items from a thin PATCH response
+  /// (Supabase .select() on a simple UPDATE returns no joins).
+  Order copyWithStatus(OrderStatus s) => Order(
+    id: id,
+    userId: userId,
+    shippingAddressId: shippingAddressId,
+    shippingAddress: shippingAddress,
+    paymentMethod: paymentMethod,
+    status: s,
+    subtotal: subtotal,
+    tax: tax,
+    total: total,
+    notes: notes,
+    items: items,
+    createdAt: createdAt,
+  );
 }
