@@ -1,16 +1,16 @@
-/// egypt_geo_data.dart
-/// ─────────────────────────────────────────────────────────────────────────────
-/// Complete list of all 27 Egyptian governorates and their major cities /
-/// districts, suitable for use in dropdown selectors.
-///
-/// Usage:
-///   final govs = EgyptGeoData.governorates;          // List<String>
-///   final cities = EgyptGeoData.citiesFor('Cairo');  // List<String>
+// egypt_geo_data.dart
+// ─────────────────────────────────────────────────────────────────────────────
+// Complete list of all 27 Egyptian governorates and their major cities /
+// districts, suitable for use in dropdown selectors.
+//
+// Usage:
+//   final govs = EgyptGeoData.governorates;          // List<String>
+//   final cities = EgyptGeoData.citiesFor('Cairo');  // List<String>
 
 class EgyptGeoData {
   EgyptGeoData._();
 
-  /// Ordered list of all Egyptian governorates (Arabic-English common names).
+  // Ordered list of all Egyptian governorates (Arabic-English common names).
   static const List<String> governorates = [
     'Cairo',
     'Giza',
@@ -329,8 +329,8 @@ class EgyptGeoData {
     ],
   };
 
-  /// Returns the sorted list of cities for a given [governorate].
-  /// Falls back to an empty list if the governorate is not found.
+  // Returns the sorted list of cities for a given [governorate].
+  // Falls back to an empty list if the governorate is not found.
   static List<String> citiesFor(String governorate) {
     final cities = _cities[governorate] ?? [];
     return List<String>.from(cities);

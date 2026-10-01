@@ -27,53 +27,53 @@ class FavoritesScreen extends StatelessWidget {
           body: CustomScrollView(
             slivers: [
               // ── App Bar ─────────────────────────────────────────────────
-              SliverAppBar(
-                pinned: true,
-                elevation: 0,
-                backgroundColor: isDark ? AppColors.darkSurface : Colors.white,
-                foregroundColor: isDark
-                    ? AppColors.darkTextPrimary
-                    : AppColors.secondary,
-                title: Text(
-                  'My Favorites',
-                  style: TextStyle(
-                    fontSize: R.font(context, 18),
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.3,
-                    color: isDark
-                        ? AppColors.darkTextPrimary
-                        : AppColors.secondary,
-                  ),
-                ),
-                actions: [
-                  if (favoriteProducts.isNotEmpty)
-                    TextButton.icon(
-                      onPressed: () => _confirmClear(context, wishlist),
-                      icon: const Icon(
-                        LucideIcons.trash2,
-                        size: 16,
-                        color: AppColors.errorRed,
-                      ),
-                      label: const Text(
-                        'Clear all',
-                        style: TextStyle(
-                          color: AppColors.errorRed,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  const SizedBox(width: 8),
-                ],
-                bottom: PreferredSize(
-                  preferredSize: const Size.fromHeight(1),
-                  child: Container(
-                    height: 1,
-                    color: isDark
-                        ? AppColors.darkBorder
-                        : AppColors.borderLight,
-                  ),
-                ),
-              ),
+              // SliverAppBar(
+              //   pinned: true,
+              //   elevation: 0,
+              //   backgroundColor: isDark ? AppColors.darkSurface : Colors.white,
+              //   foregroundColor: isDark
+              //       ? AppColors.darkTextPrimary
+              //       : AppColors.secondary,
+              //   title: Text(
+              //     'My Favorites',
+              //     style: TextStyle(
+              //       fontSize: R.font(context, 18),
+              //       fontWeight: FontWeight.w700,
+              //       letterSpacing: 0.3,
+              //       color: isDark
+              //           ? AppColors.darkTextPrimary
+              //           : AppColors.secondary,
+              //     ),
+              //   ),
+              //   actions: [
+              //     if (favoriteProducts.isNotEmpty)
+              //       TextButton.icon(
+              //         onPressed: () => _confirmClear(context, wishlist),
+              //         icon: const Icon(
+              //           LucideIcons.trash2,
+              //           size: 16,
+              //           color: AppColors.errorRed,
+              //         ),
+              //         label: const Text(
+              //           'Clear all',
+              //           style: TextStyle(
+              //             color: AppColors.errorRed,
+              //             fontWeight: FontWeight.w600,
+              //           ),
+              //         ),
+              //       ),
+              //     const SizedBox(width: 8),
+              //   ],
+              //   bottom: PreferredSize(
+              //     preferredSize: const Size.fromHeight(1),
+              //     child: Container(
+              //       height: 1,
+              //       color: isDark
+              //           ? AppColors.darkBorder
+              //           : AppColors.borderLight,
+              //     ),
+              //   ),
+              // ),
 
               // ── Count Chip ───────────────────────────────────────────────
               if (favoriteProducts.isNotEmpty)

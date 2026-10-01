@@ -25,7 +25,6 @@ import 'package:dealio/features/settings/screens/settings_screen.dart';
 import 'package:dealio/features/admin/screens/vendor_dashboard_screen.dart';
 import 'package:dealio/features/admin/screens/moderation_dashboard_screen.dart';
 
-
 class HomeBottom extends StatefulWidget {
   const HomeBottom({super.key});
 
@@ -45,29 +44,22 @@ class _HomeBottomState extends State<HomeBottom> {
     super.initState();
     _controller = SidebarXController(selectedIndex: 0, extended: true);
 
-    // ── Centralized fetch: load products once on app entry so the Home
-    //    screen shows data immediately without needing to visit Products page.
     Future.microtask(() => context.read<ProductProvider>().fetchProducts());
 
-    // داخل initState في ملف home_bottom.dart
     _pages = [
       const RepaintBoundary(child: HomeContent()), // 0
-      const RepaintBoundary(
-        child: MyOrdersScreen(),
-      ), // 1 (عدلت مكانها عشان تبقى للكل)
+      const RepaintBoundary(child: MyOrdersScreen()), // 1
       const RepaintBoundary(child: CartScreen()), // 2
       const RepaintBoundary(child: FavoritesScreen()), // 3
       const RepaintBoundary(child: ProfileScreen()), // 4
       const RepaintBoundary(child: SearchScreen()), // 5
-      const RepaintBoundary(child: ProductsContent()), // 6 (Admin/Vendor)
-      const RepaintBoundary(child: UsersContent()), // 7 (Admin/Owner)
-      const RepaintBoundary(child: VendorDashboardScreen()), // 8 (Owner/Vendor)
-      const RepaintBoundary(
-        child: ModerationDashboardScreen(),
-      ), // 9 (Moderator)
-      const RepaintBoundary(child: PlatformControlScreen()), // 10 (Owner Only)
+      const RepaintBoundary(child: ProductsContent()), // 6
+      const RepaintBoundary(child: UsersContent()), // 7
+      const RepaintBoundary(child: VendorDashboardScreen()), // 8
+      const RepaintBoundary(child: ModerationDashboardScreen()), // 9
+      const RepaintBoundary(child: PlatformControlScreen()), // 10
       const RepaintBoundary(child: SettingsScreen()), // 11
-      const RepaintBoundary(child: OrdersContent()), // 12 (Admin/Owner — Orders Mgt)
+      const RepaintBoundary(child: OrdersContent()), // 12
     ];
   }
 
@@ -82,11 +74,11 @@ class _HomeBottomState extends State<HomeBottom> {
       case 0:
         return 0; // Home
       case 1:
-        return 3; // Favorites (index 3 in _pages)
+        return 3; // Favorites
       case 2:
-        return 2; // Cart (index 2 in _pages)
+        return 2; // Cart
       case 3:
-        return 4; // Profile (index 4 in _pages)
+        return 4; // Profile
       default:
         return 0;
     }
@@ -95,13 +87,13 @@ class _HomeBottomState extends State<HomeBottom> {
   int _mapPageToBottomNavIndex(int pageIndex) {
     switch (pageIndex) {
       case 0:
-        return 0; // Home
+        return 0;
       case 3:
-        return 1; // Favorites (was case 7, now Favorites is index 3)
+        return 1;
       case 2:
-        return 2; // Cart
+        return 2;
       case 4:
-        return 3; // Profile (was case 5, Profile is at index 4)
+        return 3;
       default:
         return 0;
     }
@@ -140,21 +132,20 @@ class _HomeBottomState extends State<HomeBottom> {
   }
 
   PreferredSizeWidget _buildMobileAppBar(BuildContext context) {
-    // ⚠️ Must have exactly 13 entries — one per _pages index (0-12)
     const pageTitles = [
-      'Home', // 0
-      'My Orders', // 1
-      'Cart', // 2
-      'Favorites', // 3
-      'Profile', // 4
-      'Search', // 5
-      'Products', // 6
-      'Users', // 7
-      'Analytics', // 8
-      'Moderation', // 9
-      'Control', // 10
-      'Settings', // 11
-      'Orders Mgt', // 12
+      'Home',
+      'My Orders',
+      'Cart',
+      'Favorites',
+      'Profile',
+      'Search',
+      'Products',
+      'Users',
+      'Analytics',
+      'Moderation',
+      'Control',
+      'Settings',
+      'Orders Mgt',
     ];
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
 
@@ -165,21 +156,15 @@ class _HomeBottomState extends State<HomeBottom> {
         builder: (context, _) {
           final bool isHome = _controller.selectedIndex == 0;
 
-          // ── Home page: transparent, no title ────────────────────────────
           if (isHome) {
             return AppBar(
               toolbarHeight: R.h(context, 56),
-              // Blend with the scaffold background — the HomeHeader provides
-              // all visual identity on this page.
-              backgroundColor: isDark
-                  ? AppColors.darkBackground
-                  : AppColors.background,
+              backgroundColor:
+                  isDark ? AppColors.darkBackground : AppColors.background,
               elevation: 0,
               scrolledUnderElevation: 0,
-              foregroundColor: isDark
-                  ? AppColors.darkTextPrimary
-                  : AppColors.secondary,
-              // No title on Home — HomeHeader owns the greeting + location
+              foregroundColor:
+                  isDark ? AppColors.darkTextPrimary : AppColors.secondary,
               title: null,
               centerTitle: false,
               leading: Builder(
@@ -214,7 +199,6 @@ class _HomeBottomState extends State<HomeBottom> {
                 ),
               ),
               actions: [
-                // Cart badge
                 Consumer<CartProvider>(
                   builder: (context, cart, _) => Stack(
                     alignment: Alignment.center,
@@ -267,7 +251,6 @@ class _HomeBottomState extends State<HomeBottom> {
                     ],
                   ),
                 ),
-                // Search icon
                 IconButton(
                   icon: Icon(
                     LucideIcons.search,
@@ -283,7 +266,6 @@ class _HomeBottomState extends State<HomeBottom> {
             );
           }
 
-          // ── All other pages: standard dark AppBar with page title ────────
           return AppBar(
             toolbarHeight: R.h(context, 70),
             title: Padding(
@@ -298,9 +280,8 @@ class _HomeBottomState extends State<HomeBottom> {
                 ),
               ),
             ),
-            backgroundColor: isDark
-                ? AppColors.darkAppBar
-                : AppColors.secondary,
+            backgroundColor:
+                isDark ? AppColors.darkAppBar : AppColors.secondary,
             foregroundColor: Colors.white,
             elevation: 0,
             centerTitle: true,
@@ -310,12 +291,10 @@ class _HomeBottomState extends State<HomeBottom> {
                 child: IconButton(
                   icon: const Icon(LucideIcons.menu),
                   onPressed: () => Scaffold.of(ctx).openDrawer(),
-                  tooltip: 'Menu',
                 ),
               ),
             ),
             actions: [
-              // ─── Cart badge icon ─────────────────────────────────────────
               Consumer<CartProvider>(
                 builder: (context, cart, _) => Padding(
                   padding: R.only(context, top: 10),
@@ -325,7 +304,6 @@ class _HomeBottomState extends State<HomeBottom> {
                       IconButton(
                         icon: const Icon(LucideIcons.shoppingCart),
                         onPressed: () => _controller.selectIndex(2),
-                        tooltip: 'Cart',
                       ),
                       if (cart.itemCount > 0)
                         Positioned(
@@ -369,7 +347,6 @@ class _HomeBottomState extends State<HomeBottom> {
                 child: IconButton(
                   icon: const Icon(LucideIcons.search),
                   onPressed: () => _controller.selectIndex(5),
-                  tooltip: 'Search',
                 ),
               ),
             ],
@@ -379,175 +356,193 @@ class _HomeBottomState extends State<HomeBottom> {
     );
   }
 
+  // ── Section header (drawer + sidebar) ─────────────────────────────────────
+
+  Widget _buildSectionHeader(
+    String title, {
+    required bool isDark,
+    required bool isExtended,
+  }) {
+    if (!isExtended) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: Divider(
+          color: isDark ? Colors.white12 : Colors.black12,
+          height: 1,
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(18, 14, 12, 6),
+      child: Text(
+        title,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 1.2,
+          color: isDark ? Colors.white38 : Colors.black45,
+        ),
+      ),
+    );
+  }
+
+  // ── Mobile drawer ─────────────────────────────────────────────────────────
+
   Widget _buildMobileDrawer() {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
     final themeProvider = Provider.of<ThemeProvider>(context);
 
     return Drawer(
       backgroundColor: isDark ? AppColors.darkBackground : AppColors.secondary,
-      child: Column(
-        children: [
-          // ─── Header Branding ──────────────────────────────────────────
-          Container(
-            padding: EdgeInsets.only(
-              top: MediaQuery.of(context).padding.top + 20,
-              bottom: 30,
-              left: 24,
-              right: 24,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: AppColors.primary.withOpacity(0.15),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(
-                        LucideIcons.shoppingBag,
-                        size: 32,
-                        color: AppColors.primary,
+      child: SafeArea(
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: AppColors.primary.withOpacity(0.3),
+                        width: 1,
                       ),
                     ),
-                    const SizedBox(width: 15),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Dealio',
+                    child: const Icon(
+                      LucideIcons.shoppingBag,
+                      size: 28,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Dealio',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                      Consumer<AuthProvider>(
+                        builder: (_, auth, __) => Text(
+                          auth.isAdmin ? 'Admin Panel' : 'Customer',
                           style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 24,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 1,
+                            color: Colors.white.withOpacity(0.5),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
                           ),
                         ),
-                        // Role-aware subtitle: admins see 'Admin Panel'
-                        Consumer<AuthProvider>(
-                          builder: (_, auth, __) => Text(
-                            auth.isAdmin ? 'Admin Panel' : 'Customer',
-                            style: const TextStyle(
-                              color: Colors.white38,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ),
-
-          // ─── Navigation Items (role-driven via AppNav) ─────────────────
-          Expanded(
-            child: Consumer<AuthProvider>(
-              builder: (_, auth, __) {
-                final visibleItems = AppNav.visibleFor(auth.userRole);
-                return ListView(
-                  padding: EdgeInsets.zero,
-                  children: [
-                    // Separate privileged items from personal items with a divider
-                    ...visibleItems.map((item) {
-                      final isPersonal = [4, 5, 7].contains(item.pageIndex);
-                      return Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          // Divider before the personal section
-                          if (isPersonal &&
-                              item ==
-                                  visibleItems.firstWhere(
-                                    (i) => [4, 5, 7].contains(i.pageIndex),
-                                    orElse: () => item,
-                                  ))
-                            const Padding(
-                              padding: EdgeInsets.symmetric(
-                                horizontal: 24,
-                                vertical: 15,
-                              ),
-                              child: Divider(color: Colors.white10, height: 1),
-                            ),
+            const Divider(color: Colors.white10, height: 1),
+            const SizedBox(height: 6),
+            Expanded(
+              child: Consumer<AuthProvider>(
+                builder: (_, auth, __) {
+                  final sections = AppNav.visibleSectionsFor(auth.userRole);
+                  return ListView(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 4,
+                    ),
+                    children: [
+                      for (final section in sections) ...[
+                        _buildSectionHeader(
+                          section.title,
+                          isDark: true,
+                          isExtended: true,
+                        ),
+                        for (final item in section.items)
                           _buildDrawerItem(
                             item.pageIndex,
                             item.icon,
                             item.label,
                           ),
-                        ],
-                      );
-                    }),
-                  ],
+                      ],
+                    ],
+                  );
+                },
+              ),
+            ),
+            const Divider(color: Colors.white10, height: 1),
+            SwitchListTile(
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
+              title: const Text(
+                'Dark Mode',
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              secondary: Icon(
+                themeProvider.isDarkMode ? LucideIcons.moon : LucideIcons.sun,
+                color: themeProvider.isDarkMode
+                    ? AppColors.primary
+                    : Colors.white54,
+                size: 20,
+              ),
+              value: themeProvider.isDarkMode,
+              onChanged: (value) => themeProvider.toggleTheme(value),
+              activeColor: AppColors.primary,
+              dense: true,
+            ),
+            ListTile(
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
+              leading: const Icon(
+                LucideIcons.logOut,
+                color: Colors.redAccent,
+                size: 20,
+              ),
+              title: const Text(
+                'Logout',
+                style: TextStyle(
+                  color: Colors.redAccent,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                _showLogoutDialog(context);
+              },
+              dense: true,
+            ),
+            const SizedBox(height: 6),
+            FutureBuilder<PackageInfo>(
+              future: PackageInfo.fromPlatform(),
+              builder: (context, snapshot) {
+                final version = snapshot.data?.version ?? '';
+                final buildNumber = snapshot.data?.buildNumber ?? '';
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Text(
+                    'v$version ($buildNumber) Beta',
+                    style: const TextStyle(
+                      color: Colors.white24,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 );
               },
             ),
-          ),
-
-          // ─── Bottom Actions ─────────────────────────────────────────────
-          const Divider(color: Colors.white10, height: 1),
-
-          // Dark Mode Toggle
-          SwitchListTile(
-            title: const Text(
-              'Dark Mode',
-              style: TextStyle(
-                color: Colors.white70,
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            secondary: Icon(
-              themeProvider.isDarkMode ? LucideIcons.moon : LucideIcons.sun,
-              color: themeProvider.isDarkMode
-                  ? AppColors.primary
-                  : Colors.white38,
-              size: 20,
-            ),
-            value: themeProvider.isDarkMode,
-            onChanged: (value) => themeProvider.toggleTheme(value),
-            activeColor: AppColors.primary,
-            dense: true,
-          ),
-
-          // Logout
-          ListTile(
-            leading: const Icon(
-              LucideIcons.logOut,
-              color: Colors.redAccent,
-              size: 20,
-            ),
-            title: const Text(
-              'Logout',
-              style: TextStyle(
-                color: Colors.redAccent,
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            onTap: () {
-              Navigator.pop(context);
-              _showLogoutDialog(context);
-            },
-            dense: true,
-          ),
-
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 20),
-            child: Text(
-              'v1.1.0-beta',
-              style: TextStyle(
-                color: Colors.white10,
-                fontSize: 10,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 1,
-              ),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -557,69 +552,79 @@ class _HomeBottomState extends State<HomeBottom> {
       animation: _controller,
       builder: (context, _) {
         final isSelected = _controller.selectedIndex == index;
-        return Stack(
-          children: [
-            if (isSelected)
-              Positioned(
-                left: 0,
-                top: 8,
-                bottom: 8,
-                width: 4,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: AppColors.primary,
-                    borderRadius: const BorderRadius.only(
-                      topRight: Radius.circular(4),
-                      bottomRight: Radius.circular(4),
+        final Color bgColor = AppColors.primary.withOpacity(0.12);
+        final Color contentColor =
+            isSelected ? AppColors.primary : Colors.white70;
+
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 3.0),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: () {
+                _controller.selectIndex(index);
+                Navigator.pop(context);
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                height: 48,
+                decoration: BoxDecoration(
+                  color: isSelected ? bgColor : Colors.transparent,
+                  borderRadius: BorderRadius.circular(12),
+                  border: isSelected
+                      ? Border.all(
+                          color: AppColors.primary.withOpacity(0.8),
+                          width: 1.5,
+                        )
+                      : Border.all(color: Colors.transparent, width: 1.5),
+                ),
+                child: Row(
+                  children: [
+                    const SizedBox(width: 14),
+                    Icon(icon, color: contentColor, size: 20),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: TextStyle(
+                          color: isSelected ? Colors.white : Colors.white70,
+                          fontWeight:
+                              isSelected ? FontWeight.bold : FontWeight.w500,
+                          fontSize: 14,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.primary.withOpacity(0.4),
-                        blurRadius: 8,
-                        spreadRadius: 1,
+                    if (isSelected) ...[
+                      Container(
+                        width: 4,
+                        height: 24,
+                        margin: const EdgeInsets.only(right: 12),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary,
+                          borderRadius: BorderRadius.circular(4),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.primary.withOpacity(0.8),
+                              blurRadius: 8,
+                              spreadRadius: 1,
+                            ),
+                          ],
+                        ),
                       ),
                     ],
-                  ),
+                  ],
                 ),
-              ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-              child: ListTile(
-                leading: Icon(
-                  icon,
-                  color: isSelected ? AppColors.primary : Colors.white38,
-                  size: 22,
-                ),
-                title: Text(
-                  title,
-                  style: TextStyle(
-                    color: isSelected ? Colors.white : Colors.white54,
-                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-                    fontSize: 15,
-                    letterSpacing: 0.3,
-                  ),
-                ),
-                selected: isSelected,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                onTap: () {
-                  _controller.selectIndex(index);
-                  Navigator.pop(context);
-                },
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-                minLeadingWidth: 20,
-                visualDensity: VisualDensity.compact,
-                tileColor: isSelected
-                    ? AppColors.primary.withOpacity(0.05)
-                    : null,
               ),
             ),
-          ],
+          ),
         );
       },
     );
   }
+
+  // ── Desktop / tablet sidebar ──────────────────────────────────────────────
 
   Widget _buildSidebar(BuildContext context) {
     return AnimatedBuilder(
@@ -639,7 +644,9 @@ class _HomeBottomState extends State<HomeBottom> {
                 ? AppColors.white.withOpacity(0.047)
                 : Colors.white,
             borderRadius: BorderRadius.circular(20),
-            boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 10)],
+            boxShadow: const [
+              BoxShadow(color: Colors.black12, blurRadius: 10),
+            ],
           ),
           child: Column(
             children: [
@@ -659,12 +666,19 @@ class _HomeBottomState extends State<HomeBottom> {
               Expanded(
                 child: Consumer<AuthProvider>(
                   builder: (_, auth, __) {
-                    final visibleItems = AppNav.visibleFor(auth.userRole);
+                    final sections =
+                        AppNav.visibleSectionsFor(auth.userRole);
                     return ListView(
                       padding: const EdgeInsets.symmetric(vertical: 8),
-                      children: visibleItems
-                          .map(
-                            (item) => _buildSidebarItem(
+                      children: [
+                        for (final section in sections) ...[
+                          _buildSectionHeader(
+                            section.title,
+                            isDark: isDarkMode,
+                            isExtended: isExtended,
+                          ),
+                          for (final item in section.items)
+                            _buildSidebarItem(
                               context,
                               item.pageIndex,
                               item.icon,
@@ -672,8 +686,8 @@ class _HomeBottomState extends State<HomeBottom> {
                               iconSize,
                               isDarkMode,
                             ),
-                          )
-                          .toList(),
+                        ],
+                      ],
                     );
                   },
                 ),
@@ -705,9 +719,13 @@ class _HomeBottomState extends State<HomeBottom> {
     final Color contentColor = isSelected
         ? AppColors.primary
         : isHovered
-        ? AppColors.primary.withOpacity(0.7)
-        : (Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.45) ??
-              Colors.grey);
+            ? AppColors.primary.withOpacity(0.7)
+            : (Theme.of(context)
+                    .textTheme
+                    .bodyMedium
+                    ?.color
+                    ?.withOpacity(0.45) ??
+                Colors.grey);
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 4.0),
@@ -720,15 +738,14 @@ class _HomeBottomState extends State<HomeBottom> {
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 220),
             curve: Curves.easeOutCubic,
-            // ✅ يتحرك يمين زي زرار الدارك مود
             transform: Matrix4.translationValues(isHovered ? 5 : 0, 0, 0),
             height: 50,
             decoration: BoxDecoration(
               color: isSelected
                   ? bgColor
                   : isHovered
-                  ? AppColors.primary.withOpacity(0.05)
-                  : Colors.transparent,
+                      ? AppColors.primary.withOpacity(0.05)
+                      : Colors.transparent,
               borderRadius: BorderRadius.circular(12),
               border: isSelected
                   ? Border.all(color: AppColors.primary, width: 1.5)
@@ -737,45 +754,31 @@ class _HomeBottomState extends State<HomeBottom> {
             child: Row(
               children: [
                 const SizedBox(width: 14),
-
-                // ✅ الأيقونة تكبر بسلاسة
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 220),
-                  curve: Curves.easeOutCubic,
-                  child: Icon(
-                    icon,
-                    color: contentColor,
-                    size: isHovered ? iconSize + 2 : iconSize,
-                  ),
+                Icon(
+                  icon,
+                  color: contentColor,
+                  size: isHovered ? iconSize + 2 : iconSize,
                 ),
-
                 if (isExtended) ...[
                   const SizedBox(width: 12),
                   Expanded(
-                    // ✅ النص يكبر بسلاسة مع AnimatedDefaultTextStyle
-                    child: AnimatedDefaultTextStyle(
-                      duration: const Duration(milliseconds: 220),
-                      curve: Curves.easeOutCubic,
+                    child: Text(
+                      label,
                       style: TextStyle(
                         color: contentColor,
-                        fontWeight: isSelected
-                            ? FontWeight.bold
-                            : FontWeight.normal,
+                        fontWeight:
+                            isSelected ? FontWeight.bold : FontWeight.normal,
                         fontSize: isHovered
                             ? R.font(context, 14.8)
                             : R.font(context, 14),
                       ),
-                      child: Text(label, overflow: TextOverflow.ellipsis),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 ],
-
-                // ✅ الشريط اليميني يكبر مع الـ hover ويتضيء أكتر
                 if (isSelected) ...[
                   const SizedBox(width: 12),
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 220),
-                    curve: Curves.easeOutCubic,
+                  Container(
                     width: 4,
                     height: isHovered ? 34 : 28,
                     decoration: BoxDecoration(
@@ -783,9 +786,8 @@ class _HomeBottomState extends State<HomeBottom> {
                       borderRadius: BorderRadius.circular(4),
                       boxShadow: [
                         BoxShadow(
-                          color: AppColors.primary.withOpacity(
-                            isHovered ? 0.9 : 0.6,
-                          ),
+                          color: AppColors.primary
+                              .withOpacity(isHovered ? 0.9 : 0.6),
                           blurRadius: isHovered ? 12.0 : 8.0,
                           spreadRadius: isHovered ? 2.0 : 1.0,
                         ),
@@ -814,7 +816,6 @@ class _HomeBottomState extends State<HomeBottom> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // ─── Dark Mode Toggle ──────────────────────────────────────────────
         Container(
           margin: EdgeInsets.symmetric(
             horizontal: R.all(context, 10).left,
@@ -830,19 +831,16 @@ class _HomeBottomState extends State<HomeBottom> {
             onEnter: (_) => setState(() => _hoveredTheme = true),
             onExit: (_) => setState(() => _hoveredTheme = false),
             child: GestureDetector(
-              onTap: () => themeProvider.toggleTheme(!themeProvider.isDarkMode),
+              onTap: () =>
+                  themeProvider.toggleTheme(!themeProvider.isDarkMode),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 220),
-                curve: Curves.easeOutCubic,
-                // ✅ نفس الانيميشن: يتحرك يمين
-                transform: Matrix4.translationValues(
-                  _hoveredTheme ? 5 : 0,
-                  0,
-                  0,
-                ),
+                transform:
+                    Matrix4.translationValues(_hoveredTheme ? 5 : 0, 0, 0),
                 padding: EdgeInsets.symmetric(
                   vertical: R.h(context, 15),
-                  horizontal: extended ? R.w(context, 20) : R.w(context, 10),
+                  horizontal:
+                      extended ? R.w(context, 20) : R.w(context, 10),
                 ),
                 decoration: BoxDecoration(
                   color: _hoveredTheme
@@ -855,51 +853,33 @@ class _HomeBottomState extends State<HomeBottom> {
                       ? MainAxisAlignment.start
                       : MainAxisAlignment.center,
                   children: [
-                    // ✅ لما hover: الأيقونة بتعرض الـ preview للتغيير (شمس ↔ قمر)
-                    AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 300),
-                      switchInCurve: Curves.easeOutBack,
-                      switchOutCurve: Curves.easeIn,
-                      transitionBuilder: (child, animation) => ScaleTransition(
-                        scale: animation,
-                        child: FadeTransition(opacity: animation, child: child),
-                      ),
-                      child: Icon(
-                        _hoveredTheme
-                            ? (themeProvider.isDarkMode
-                                  ? LucideIcons.sun
-                                  : LucideIcons.moon)
-                            : (themeProvider.isDarkMode
-                                  ? LucideIcons.moon
-                                  : LucideIcons.sun),
-                        key: ValueKey(
-                          'theme_${themeProvider.isDarkMode}_$_hoveredTheme',
-                        ),
-                        color: _hoveredTheme
-                            ? AppColors.primary
-                            : (themeProvider.isDarkMode
-                                  ? Colors.white
-                                  : Theme.of(context).primaryColor),
-                        size: _hoveredTheme ? iconSize + 2 : iconSize,
-                      ),
+                    Icon(
+                      themeProvider.isDarkMode
+                          ? LucideIcons.moon
+                          : LucideIcons.sun,
+                      color: _hoveredTheme
+                          ? AppColors.primary
+                          : (themeProvider.isDarkMode
+                              ? Colors.white
+                              : Theme.of(context).primaryColor),
+                      size: _hoveredTheme ? iconSize + 2 : iconSize,
                     ),
                     if (extended) ...[
                       SizedBox(width: R.w(context, 15)),
                       Expanded(
-                        child: AnimatedDefaultTextStyle(
-                          duration: const Duration(milliseconds: 220),
+                        child: Text(
+                          'Dark Mode',
                           style: TextStyle(
                             color: _hoveredTheme
                                 ? AppColors.primary
                                 : (themeProvider.isDarkMode
-                                      ? Colors.white
-                                      : Theme.of(context).primaryColor),
+                                    ? Colors.white
+                                    : Theme.of(context).primaryColor),
                             fontSize: _hoveredTheme
                                 ? R.font(context, 14.8)
                                 : R.font(context, 14),
                             fontWeight: FontWeight.w600,
                           ),
-                          child: const Text('Dark Mode'),
                         ),
                       ),
                       SizedBox(
@@ -917,8 +897,6 @@ class _HomeBottomState extends State<HomeBottom> {
             ),
           ),
         ),
-
-        // ─── Logout ────────────────────────────────────────────────────────
         Container(
           margin: EdgeInsets.symmetric(
             horizontal: R.all(context, 10).left,
@@ -937,16 +915,12 @@ class _HomeBottomState extends State<HomeBottom> {
               onTap: () => _showLogoutDialog(context),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 220),
-                curve: Curves.easeOutCubic,
-                // ✅ نفس الانيميشن + خلفية حمرا مع border خفيف
-                transform: Matrix4.translationValues(
-                  _hoveredLogout ? 5 : 0,
-                  0,
-                  0,
-                ),
+                transform:
+                    Matrix4.translationValues(_hoveredLogout ? 5 : 0, 0, 0),
                 padding: EdgeInsets.symmetric(
                   vertical: R.h(context, 15),
-                  horizontal: extended ? R.w(context, 20) : R.w(context, 10),
+                  horizontal:
+                      extended ? R.w(context, 20) : R.w(context, 10),
                 ),
                 decoration: BoxDecoration(
                   color: _hoveredLogout
@@ -965,18 +939,15 @@ class _HomeBottomState extends State<HomeBottom> {
                       ? MainAxisAlignment.start
                       : MainAxisAlignment.center,
                   children: [
-                    AnimatedContainer(
-                      duration: const Duration(milliseconds: 220),
-                      child: Icon(
-                        LucideIcons.logOut,
-                        color: Colors.red,
-                        size: _hoveredLogout ? iconSize + 2 : iconSize,
-                      ),
+                    Icon(
+                      LucideIcons.logOut,
+                      color: Colors.red,
+                      size: _hoveredLogout ? iconSize + 2 : iconSize,
                     ),
                     if (extended) ...[
                       SizedBox(width: R.w(context, 15)),
-                      AnimatedDefaultTextStyle(
-                        duration: const Duration(milliseconds: 220),
+                      Text(
+                        'Logout',
                         style: TextStyle(
                           color: Colors.red,
                           fontSize: _hoveredLogout
@@ -984,7 +955,6 @@ class _HomeBottomState extends State<HomeBottom> {
                               : R.font(context, 14),
                           fontWeight: FontWeight.w600,
                         ),
-                        child: const Text('Logout'),
                       ),
                     ],
                   ],
@@ -998,7 +968,6 @@ class _HomeBottomState extends State<HomeBottom> {
           builder: (context, snapshot) {
             final version = snapshot.data?.version ?? '';
             final buildNumber = snapshot.data?.buildNumber ?? '';
-
             return Text(
               'Version $version ($buildNumber) Beta',
               style: TextStyle(
@@ -1011,7 +980,6 @@ class _HomeBottomState extends State<HomeBottom> {
           },
         ),
         SizedBox(height: R.h(context, 10)),
-        // ─── Beta Tag ──────────────────────────────────────────────────────
       ],
     );
   }
@@ -1030,15 +998,12 @@ class _HomeBottomState extends State<HomeBottom> {
           TextButton(
             onPressed: () async {
               Navigator.pop(dialogContext);
-              final authProvider = Provider.of<AuthProvider>(
-                context,
-                listen: false,
-              );
+              final authProvider =
+                  Provider.of<AuthProvider>(context, listen: false);
               await authProvider.logout(context);
               if (context.mounted) {
-                Navigator.of(
-                  context,
-                ).pushNamedAndRemoveUntil('/login', (route) => false);
+                Navigator.of(context)
+                    .pushNamedAndRemoveUntil('/login', (route) => false);
               }
             },
             child: const Text(
@@ -1059,25 +1024,21 @@ class _HomeBottomState extends State<HomeBottom> {
         animation: _controller,
         builder: (context, _) {
           return Theme(
-            data: Theme.of(
-              context,
-            ).copyWith(canvasColor: Theme.of(context).cardColor),
+            data: Theme.of(context)
+                .copyWith(canvasColor: Theme.of(context).cardColor),
             child: Container(
               color: Theme.of(context).cardColor,
               child: BottomNavigationBar(
-                currentIndex: _mapPageToBottomNavIndex(
-                  _controller.selectedIndex,
-                ),
+                currentIndex:
+                    _mapPageToBottomNavIndex(_controller.selectedIndex),
                 onTap: (index) =>
                     _controller.selectIndex(_mapBottomNavToPageIndex(index)),
                 backgroundColor: Colors.transparent,
                 elevation: 0,
                 selectedItemColor: AppColors.primary,
                 unselectedItemColor: AppColors.darkTextMuted,
-                selectedIconTheme: const IconThemeData(
-                  color: AppColors.primary,
-                  size: 24,
-                ),
+                selectedIconTheme:
+                    const IconThemeData(color: AppColors.primary, size: 24),
                 unselectedIconTheme: const IconThemeData(
                   color: AppColors.darkTextMuted,
                   size: 22,
@@ -1092,12 +1053,10 @@ class _HomeBottomState extends State<HomeBottom> {
                 ),
                 type: BottomNavigationBarType.fixed,
                 items: [
-                  // 0 – Home
                   const BottomNavigationBarItem(
                     icon: Icon(LucideIcons.house),
                     label: 'Home',
                   ),
-                  // 1 – Favorites
                   BottomNavigationBarItem(
                     icon: Stack(
                       clipBehavior: Clip.none,
@@ -1105,6 +1064,7 @@ class _HomeBottomState extends State<HomeBottom> {
                         const Icon(Icons.favorite_border_rounded),
                         if (wishlist.count > 0)
                           Positioned(
+
                             top: -6,
                             right: -8,
                             child: Container(
@@ -1137,7 +1097,6 @@ class _HomeBottomState extends State<HomeBottom> {
                     activeIcon: const Icon(Icons.favorite_rounded),
                     label: 'Favorites',
                   ),
-                  // 2 – Cart
                   BottomNavigationBarItem(
                     icon: Stack(
                       clipBehavior: Clip.none,
@@ -1178,7 +1137,6 @@ class _HomeBottomState extends State<HomeBottom> {
                     ),
                     label: 'Cart',
                   ),
-                  // 3 – Profile
                   const BottomNavigationBarItem(
                     icon: Icon(LucideIcons.user),
                     label: 'Profile',
