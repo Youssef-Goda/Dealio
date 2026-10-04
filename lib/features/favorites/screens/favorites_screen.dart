@@ -35,7 +35,7 @@ class FavoritesScreen extends StatelessWidget {
               //       ? AppColors.darkTextPrimary
               //       : AppColors.secondary,
               //   title: Text(
-              //     'My Favorites',
+              //     'My Favorites', 
               //     style: TextStyle(
               //       fontSize: R.font(context, 18),
               //       fontWeight: FontWeight.w700,

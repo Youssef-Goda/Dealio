@@ -25,7 +25,7 @@ class CartItemCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: Colors.red.shade400,
           borderRadius: BorderRadius.circular(16),
-        ),
+        ), 
         child: const Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [

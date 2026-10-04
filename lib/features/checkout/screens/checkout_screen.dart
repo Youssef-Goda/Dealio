@@ -186,7 +186,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           //     ),
           //   );
           // }
-          // else {
+          // else { 
           //   _showError('Could not open Paymob checkout page.');
           // }
           final uri = Uri.parse(unifiedCheckoutUrl);

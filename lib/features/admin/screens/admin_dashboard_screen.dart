@@ -15,7 +15,7 @@ import 'package:provider/provider.dart';
 /// Extend this screen with real widgets (order table, product management, etc.)
 /// by adding cards to [_buildDashboardGrid].
 class AdminDashboardScreen extends StatefulWidget {
-  const AdminDashboardScreen({super.key});
+  const AdminDashboardScreen({super.key}); 
 
   @override
   State<AdminDashboardScreen> createState() => _AdminDashboardScreenState();

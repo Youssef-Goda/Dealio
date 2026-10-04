@@ -23,7 +23,7 @@ class _DragDropZoneState extends State<DragDropZone> {
     if (images.isNotEmpty) {
       widget.onImagesDropped(images);
     }
-  }
+  } 
 
   @override
   Widget build(BuildContext context) {

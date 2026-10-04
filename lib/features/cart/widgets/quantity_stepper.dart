@@ -27,7 +27,7 @@ class QuantityStepper extends StatelessWidget {
         border: Border.all(
           color: isDark ? AppColors.darkBorder : AppColors.borderLight,
           width: 1,
-        ),
+        ), 
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,

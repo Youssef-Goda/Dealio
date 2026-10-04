@@ -31,7 +31,7 @@ import 'package:provider/provider.dart';
 ///
 /// ### Usage (programmatic push):
 /// ```dart
-/// Navigator.push(context, MaterialPageRoute(
+/// Navigator.push(context, MaterialPageRoute( 
 ///   builder: (_) => GuardedRoute(
 ///     allowedRoles: [AppRoles.owner],
 ///     child: const PlatformControlScreen(),

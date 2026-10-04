@@ -23,7 +23,7 @@ class ModerationDashboardScreen extends StatelessWidget {
       allowedRoles: AppRoles.moderators,
       fallback: const Scaffold(
         body: Center(child: Text('Access Denied')),
-      ),
+      ), 
       child: const _ModerationBody(),
     );
   }

@@ -222,7 +222,7 @@ class AppNav {
       items: [
         NavItem(
           pageIndex: 9,
-          icon: LucideIcons.shieldAlert,
+          icon: LucideIcons.shieldAlert, 
           label: 'Moderation',
           allowedRoles: AppRoles.moderators,
         ),

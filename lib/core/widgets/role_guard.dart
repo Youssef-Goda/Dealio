@@ -42,7 +42,7 @@ class RoleGuard extends StatelessWidget {
     required this.child,
     this.fallback,
   });
-
+ 
   @override
   Widget build(BuildContext context) {
     final role = context.select<AuthProvider, String>(

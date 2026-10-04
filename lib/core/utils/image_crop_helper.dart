@@ -11,7 +11,7 @@ import 'package:image_picker/image_picker.dart';
 /// On **mobile / desktop** the native cropper is shown with the supplied
 /// [aspectRatio].  Returns `null` if the user cancels.
 class ImageCropHelper {
-  ImageCropHelper._();
+  ImageCropHelper._(); 
 
   static const Color _toolbarColor = Color(0xFF121212);
   static const Color _accentColor = Color(0xFFFFD700);

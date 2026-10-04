@@ -4,7 +4,7 @@
 //
 // Five roles (ascending privilege):
 //   customer < vendor < moderator < admin < owner
-//
+// 
 // To add a new role:
 //   1. Add a constant below.
 //   2. Update the backend ENUM in models/User.js AND Supabase CHECK constraint.

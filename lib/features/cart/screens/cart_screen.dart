@@ -23,7 +23,7 @@ class _CartScreenState extends State<CartScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _syncCartWithAuth();
+      _syncCartWithAuth(); 
 
       // ─── Listen to auth changes to re-fetch cart after login ────────────
       // When the user logs in from the guest state, AuthProvider notifies.

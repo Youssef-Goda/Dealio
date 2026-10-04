@@ -1306,7 +1306,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             label,
             isDark,
             hintText: hint,
-            prefixIcon: LucideIcons.lock,
+            prefixIcon: LucideIcons.lock, 
           ).copyWith(
             suffixIconColor: WidgetStateColor.resolveWith((
               Set<WidgetState> states,

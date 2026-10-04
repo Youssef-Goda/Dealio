@@ -19,7 +19,7 @@ void showUserDetailsDialog(
   UserModel user,
   UserProvider userProv,
 ) {
-  showGeneralDialog(
+  showGeneralDialog( 
     context: context,
     barrierDismissible: true,
     barrierLabel: 'User Details',

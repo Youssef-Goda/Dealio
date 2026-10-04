@@ -19,7 +19,7 @@ class _AdminOrdersScreenState extends State<AdminOrdersScreen> {
   void initState() {
     super.initState();
     // Pre-fetch orders so the table is populated immediately on mount.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) { 
       if (mounted) context.read<OrdersProvider>().fetchOrders();
     });
   }

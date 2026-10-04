@@ -17,7 +17,7 @@ const _kLightHi = Color(0xFFF9F9F9);
 class DealioShimmer extends StatefulWidget {
   final double? width;
   final double height;
-  final double borderRadius;
+  final double borderRadius; 
 
   const DealioShimmer({
     super.key,

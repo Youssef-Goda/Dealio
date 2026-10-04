@@ -97,7 +97,7 @@ class PermissionGuard extends StatelessWidget {
       return child;
     }
 
-    // 3. Resource ownership check (e.g. Vendor editing their own product)
+    // 3. Resource ownership check (e.g. Vendor editing their  own product)
     if (resourceOwnerId != null &&
         auth.userId.isNotEmpty &&
         auth.userId == resourceOwnerId) {

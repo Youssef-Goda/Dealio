@@ -11,7 +11,7 @@ class DeviceInfoService {
         final browserName = _parseBrowserName(webInfo.browserName.name);
         final osName = _parseWebOS(webInfo.userAgent ?? webInfo.appVersion ?? '');
         return 'Platform: Web — $browserName on $osName';
-      } else {
+      } else { 
         if (defaultTargetPlatform == TargetPlatform.android) {
           final androidInfo = await _deviceInfoPlugin.androidInfo;
           final manufacturer = androidInfo.manufacturer;

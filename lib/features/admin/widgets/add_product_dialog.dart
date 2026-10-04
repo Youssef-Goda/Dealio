@@ -32,7 +32,7 @@ Widget _buildTextField({
         label,
         style: TextStyle(
           fontSize: 14,
-          fontWeight: FontWeight.w600,
+          fontWeight: FontWeight.w600, 
           color: Theme.of(context).textTheme.bodyLarge?.color?.withOpacity(0.8),
           letterSpacing: -0.1,
         ),

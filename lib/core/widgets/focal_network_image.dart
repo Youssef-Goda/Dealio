@@ -20,7 +20,7 @@ class FocalNetworkImage extends StatelessWidget {
     this.width,
     this.height,
   });
-
+ 
   @override
   Widget build(BuildContext context) {
     return CachedNetworkImage(

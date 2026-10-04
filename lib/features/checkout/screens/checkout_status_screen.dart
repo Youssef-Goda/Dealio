@@ -433,7 +433,7 @@ class _PrimaryButton extends StatelessWidget {
 
   const _PrimaryButton({
     required this.label,
-    required this.icon,
+    required this.icon, 
     required this.onPressed,
     this.color = AppColors.primary,
   });

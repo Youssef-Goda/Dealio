@@ -673,7 +673,7 @@ class _FilterBar extends StatelessWidget {
           decoration: BoxDecoration(
             color: focusMode
                 ? AppColors.primary.withValues(alpha: isDark ? 0.15 : 0.1)
-                : Colors.transparent,
+                : Colors.transparent, 
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
               color: focusMode

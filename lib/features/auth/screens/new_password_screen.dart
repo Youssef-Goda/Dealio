@@ -864,7 +864,7 @@ class _NewPasswordScreenState extends State<NewPasswordScreen> {
           return isDark
               ? AppColors.darkTextSecondary.withOpacity(0.7)
               : AppColors.secondary.withOpacity(0.7);
-        }),
+        }), 
 
         suffixIcon: IconButton(
           // canRequestFocus: false, // <-- السطر ده هو اللي هيحل المشكلة تماماً

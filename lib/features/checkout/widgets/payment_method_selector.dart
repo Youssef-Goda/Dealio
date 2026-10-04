@@ -166,7 +166,7 @@ class _RadioDot extends StatelessWidget {
           : null,
     );
   }
-}
+} 
 
 // Icon box used in the header row
 class _IconBox extends StatelessWidget {

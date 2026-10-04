@@ -1225,7 +1225,7 @@ class _ResetPasswordOtpScreenState extends State<ResetPasswordOtpScreen> {
                         ),
                       ),
                     ),
-                    SizedBox(height: R.h(context, 50)),
+                    SizedBox(height: R.h(context, 50)), 
                   ],
                 ),
               ),

@@ -630,7 +630,7 @@ class LoginScreenState extends State<LoginScreen> {
         _clearServerError();
         context.read<AuthProvider>().tempEmail = v;
       },
-      onFieldSubmitted: (_) =>
+      onFieldSubmitted: (_) => 
           FocusScope.of(context).requestFocus(passwordFocusNode),
       decoration: _inputDecoration(
         'Email',

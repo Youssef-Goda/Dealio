@@ -12,7 +12,7 @@ class NavGuard {
     Object? arguments,
     String? deniedMessage,
   }) {
-    final role = context.read<AuthProvider>().userRole;
+    final role = context.read<AuthProvider>().userRole; 
     if (AppRoles.isAllowed(role, allowedRoles)) {
       Navigator.of(context).pushNamed(route, arguments: arguments);
     } else {

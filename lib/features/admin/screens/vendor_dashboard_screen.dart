@@ -25,7 +25,7 @@ class VendorDashboardScreen extends StatelessWidget {
     );
   }
 }
-
+ 
 // ── Body ───────────────────────────────────────────────────────────────────────
 class _VendorDashboardBody extends StatefulWidget {
   const _VendorDashboardBody();

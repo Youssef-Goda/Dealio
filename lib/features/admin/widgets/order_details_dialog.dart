@@ -84,7 +84,7 @@ class _OrderDetailsDialogState extends State<OrderDetailsDialog> {
       case OrderStatus.confirmed:
         return AppColors.infoBlue;
       case OrderStatus.processing:
-        return AppColors.adminPurple;
+        return AppColors.adminPurple; 
       case OrderStatus.shipped:
         return AppColors.primary;
       case OrderStatus.delivered:

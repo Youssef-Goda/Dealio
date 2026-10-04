@@ -28,7 +28,7 @@ class _ProductsContentState extends State<ProductsContent> {
     Future.microtask(() => context.read<ProductProvider>().fetchProducts());
   }
 
-  @override
+  @override 
   void dispose() {
     _searchController.dispose();
     super.dispose();

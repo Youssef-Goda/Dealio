@@ -14,7 +14,7 @@ class AppTheme {
         surface: AppColors.white,
       ),
       textTheme: GoogleFonts.poppinsTextTheme().apply(
-        bodyColor: AppColors.textPrimaryDark,
+        bodyColor: AppColors.textPrimaryDark, 
         displayColor: AppColors.textPrimaryDark,
       ),
       inputDecorationTheme: const InputDecorationTheme(

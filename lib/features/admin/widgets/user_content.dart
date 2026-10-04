@@ -24,7 +24,7 @@ String _rolePrefix(String role) {
     case 'moderator': return 'M';
     case 'vendor':    return 'V';
     default:          return 'U'; // user / customer
-  }
+  } 
 }
 
 /// Returns the user code with a role-based prefix.

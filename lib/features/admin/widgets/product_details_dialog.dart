@@ -26,7 +26,7 @@ void showProductDetailsDialog(
     builder: (ctx) =>
         ProductDetailsDialog(product: product, onDelete: onDelete),
   );
-}
+} 
 
 class ProductDetailsDialog extends StatefulWidget {
   final Product product;

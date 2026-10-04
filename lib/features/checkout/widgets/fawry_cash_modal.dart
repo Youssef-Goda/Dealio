@@ -346,7 +346,7 @@ class _FawryCashModalState extends State<FawryCashModal>
                         ),
                       ],
                     ),
-                  ),
+                  ), 
                   const SizedBox(height: 8),
 
                   // ── Outlet logos row ────────────────────────────────────

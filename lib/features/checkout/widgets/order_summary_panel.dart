@@ -210,7 +210,7 @@ class OrderSummaryPanel extends StatelessWidget {
                         color: Colors.white,
                         size: 20,
                       ),
-                label: Text(
+                label: Text(  
                   checkout.isPlacingOrder
                       ? 'Placing Order...'
                       : checkout.isInitiatingPayment

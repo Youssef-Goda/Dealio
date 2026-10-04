@@ -316,7 +316,7 @@ class EgyptGeoData {
       'Hurghada',
       'Safaga',
       'El Quseir',
-      'Marsa Alam',
+      'Marsa Alam', 
       'Ras Gharib',
       'Shalatin',
     ],
