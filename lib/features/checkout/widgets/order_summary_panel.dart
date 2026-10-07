@@ -205,7 +205,7 @@ class OrderSummaryPanel extends StatelessWidget {
                           color: Colors.white,
                         ),
                       )
-                    : const Icon(
+                    : const Icon( 
                         LucideIcons.shieldCheck,
                         color: Colors.white,
                         size: 20,
