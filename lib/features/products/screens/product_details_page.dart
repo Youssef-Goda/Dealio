@@ -3,11 +3,9 @@ import 'package:dealio/core/constants/colors.dart';
 import 'package:dealio/data/models/product_model.dart';
 import 'package:dealio/data/providers/auth_provider.dart';
 import 'package:dealio/data/providers/cart_provider.dart';
-import 'package:dealio/data/providers/review_provider.dart';
 import 'package:dealio/features/admin/widgets/product_details_dialog.dart';
 import 'package:dealio/data/providers/product_provider.dart';
 import 'package:dealio/features/products/widgets/review_section.dart';
-import 'package:dealio/features/products/widgets/star_rating.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/svg.dart';
@@ -694,6 +692,11 @@ class _InfoSection extends StatelessWidget {
             ),
           ),
         ),
+        const SizedBox(height: 32),
+        const Divider(),
+        const SizedBox(height: 16),
+        // ── Customer Reviews ────────────────────────────────────────────────
+        ReviewSection(productId: p.id),
       ],
     );
   }

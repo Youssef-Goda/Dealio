@@ -36,7 +36,11 @@ class _OrdersContentState extends State<OrdersContent> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) context.read<OrdersProvider>().fetchOrders();
+      if (!mounted) return;
+      // Clear any stale customer-scoped orders before loading admin view.
+      context.read<OrdersProvider>().clearOrders();
+      // TODO: switch to server-side pagination if order count exceeds 1000.
+      context.read<OrdersProvider>().fetchAdminOrders(limit: 1000);
     });
   }
 
@@ -50,7 +54,7 @@ class _OrdersContentState extends State<OrdersContent> {
   // ── Fetch all from API (always page 1 — pagination is local) ─────────────
   void _fetch({required int page}) {
     setState(() => _currentPage = page);
-    context.read<OrdersProvider>().fetchOrders();
+    context.read<OrdersProvider>().fetchAdminOrders(limit: 1000);
   }
 
   // ── Search with 400 ms debounce ───────────────────────────────────────────

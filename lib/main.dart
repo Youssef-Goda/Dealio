@@ -21,6 +21,7 @@ import 'package:dealio/data/providers/profile_provider.dart';
 import 'package:dealio/data/providers/wishlist_provider.dart';
 import 'package:dealio/data/providers/checkout_provider.dart';
 import 'package:dealio/data/providers/orders_provider.dart';
+import 'package:dealio/data/providers/review_provider.dart';
 import 'package:dealio/data/providers/settings_provider.dart';
 import 'package:dealio/data/services/notification_service.dart';
 import 'package:dealio/core/theme/app_theme.dart';
@@ -199,6 +200,7 @@ void main() async {
         ),
         ChangeNotifierProvider(create: (_) => CheckoutProvider()),
         ChangeNotifierProvider(create: (_) => OrdersProvider()),
+        ChangeNotifierProvider(create: (_) => ReviewProvider()),
         ChangeNotifierProvider(
           create: (_) => StoreSettingsProvider()..fetchPublicSettings(),
         ),

@@ -18,9 +18,11 @@ class _AdminOrdersScreenState extends State<AdminOrdersScreen> {
   @override
   void initState() {
     super.initState();
-    // Pre-fetch orders so the table is populated immediately on mount.
-    WidgetsBinding.instance.addPostFrameCallback((_) { 
-      if (mounted) context.read<OrdersProvider>().fetchOrders();
+    // Pre-fetch all orders (admin view) so the table is populated immediately on mount.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      context.read<OrdersProvider>().clearOrders(); // prevent stale customer orders leaking in
+      context.read<OrdersProvider>().fetchAdminOrders(limit: 1000);
     });
   }
 
