@@ -109,6 +109,84 @@ class OrdersProvider with ChangeNotifier {
     }
   }
 
+  // ──────────────────────── fetchAdminOrders ───────────────────
+  /// GET /api/orders/all — Admin: list all orders across all users (paginated + filtered).
+  /// Authenticated via JWT in SharedPreferences (must have admin/super_admin/owner/moderator role).
+  Future<void> fetchAdminOrders({
+    int page = 1,
+    int limit = 100,
+    String? search,
+    String? status,
+    String? governorate,
+    String? city,
+  }) async {
+    _setLoading(true);
+    _error = null;
+    try {
+      final token = await _getToken();
+      if (token == null) {
+        _error = 'You are not logged in.';
+        debugPrint('❌ [OrdersProvider] fetchAdminOrders → no token');
+        return;
+      }
+
+      final queryParams = <String, String>{
+        'page': page.toString(),
+        'limit': limit.toString(),
+      };
+      if (search != null && search.trim().isNotEmpty) {
+        queryParams['search'] = search.trim();
+      }
+      if (status != null &&
+          status.trim().isNotEmpty &&
+          status.trim().toLowerCase() != 'all') {
+        queryParams['status'] = status.trim().toLowerCase();
+      }
+      if (governorate != null &&
+          governorate.trim().isNotEmpty &&
+          governorate != 'All Governorates') {
+        queryParams['governorate'] = governorate.trim();
+      }
+      if (city != null &&
+          city.trim().isNotEmpty &&
+          city != 'All Cities') {
+        queryParams['city'] = city.trim();
+      }
+
+      final uri = Uri.parse('${AppConstants.baseUrl}/orders/all')
+          .replace(queryParameters: queryParams);
+
+      final response = await http.get(
+        uri,
+        headers: _authHeaders(token),
+      );
+
+      debugPrint('📡 [OrdersProvider] GET /orders/all → ${response.statusCode}');
+
+      if (response.statusCode == 200) {
+        final body = jsonDecode(response.body) as Map<String, dynamic>;
+        final raw = body['data'] as List<dynamic>? ?? [];
+        _orders = raw
+            .map((e) => Order.fromJson(e as Map<String, dynamic>))
+            .toList();
+        debugPrint(
+          '✅ [OrdersProvider] fetchAdminOrders → ${_orders.length} orders',
+        );
+      } else {
+        final body = _tryDecode(response.body);
+        _error =
+            body?['message']?.toString() ??
+            'Failed to load admin orders (${response.statusCode})';
+        debugPrint('❌ [OrdersProvider] fetchAdminOrders error: $_error');
+      }
+    } catch (e) {
+      _error = 'Network error: $e';
+      debugPrint('❌ [OrdersProvider] fetchAdminOrders exception: $e');
+    } finally {
+      _setLoading(false);
+    }
+  }
+
   // ────────────────────── prependOrder ─────────────────────────
   /// Called right after placeOrder() to immediately surface the new order.
   void prependOrder(Order order) {
