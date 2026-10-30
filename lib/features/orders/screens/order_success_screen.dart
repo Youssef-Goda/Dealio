@@ -33,44 +33,43 @@ class _OrderSuccessScreenState extends State<OrderSuccessScreen>
     super.dispose();
   }
 
-  /// التوجيه لصفحة الطلبات وفتح تفاصيل الطلب الجديد تلقائياً بـ Slide-up transition
-  Future<void> _trackOrder(Order order) async {
+  /// Navigate to order detail screen safely after order placement.
+  ///
+  /// Replaces the success screen in the navigation stack with:
+  ///   Home → My Orders → Order Detail
+  ///
+  /// Back-navigation then goes: OrderDetail → MyOrders → Home (correct).
+  ///
+  /// Uses addPostFrameCallback instead of Future.delayed so the Navigator
+  /// finishes processing pushNamedAndRemoveUntil before the second push.
+  /// This eliminates the black-screen bug caused by the old async/delayed
+  /// approach, which continued after the widget was disposed.
+  void _trackOrder(Order order) {
     if (!mounted) return;
 
+    // Capture the navigator reference synchronously — safe to use in the
+    // post-frame callback even after this widget's state is disposed.
     final navigator = Navigator.of(context);
 
-    // الخطوة 1: تنظيف الـ Stack والرجوع لصفحة الطلبات
-    // بنخلي الـ Home موجودة ونفتح فوقها My Orders
+    // Build the Order Detail route with the order argument pre-embedded.
+    final orderDetailRoute = MaterialPageRoute<void>(
+      builder: (_) => const OrderDetailScreen(),
+      settings: RouteSettings(name: '/order-detail', arguments: order),
+    );
+
+    // Step 1: Reset the stack to Home → My Orders.
+    // The predicate retains the '/home' route (or the very first route) as the
+    // bottom of the stack so the user can navigate back to it from My Orders.
     navigator.pushNamedAndRemoveUntil(
       '/my-orders',
-      (route) => route.settings.name == '/home',
+      (route) => route.settings.name == '/home' || route.isFirst,
     );
 
-    // الخطوة 2: انتظار بسيط عشان الـ UI يلحق يـ mount
-    await Future.delayed(const Duration(milliseconds: 250));
-    if (!navigator.mounted) return;
-
-    // الخطوة 3: فتح صفحة التفاصيل بـ Animation مخصص (Premium Feel)
-    navigator.push(
-      PageRouteBuilder<void>(
-        settings: RouteSettings(name: '/order-detail', arguments: order),
-        transitionDuration: const Duration(milliseconds: 500),
-        pageBuilder: (_, __, ___) => const OrderDetailScreen(),
-        transitionsBuilder: (_, animation, __, child) {
-          const begin = Offset(0.0, 1.0); // يبدأ من تحت
-          const end = Offset.zero;
-          const curve = Curves.easeOutCubic;
-
-          var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
-          var offsetAnimation = animation.drive(tween);
-
-          return FadeTransition(
-            opacity: animation,
-            child: SlideTransition(position: offsetAnimation, child: child),
-          );
-        },
-      ),
-    );
+    // Step 2: Push Order Detail after the Navigator has finished Step 1.
+    // addPostFrameCallback guarantees the Navigator rebuild is complete.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      navigator.push(orderDetailRoute);
+    });
   }
 
   @override

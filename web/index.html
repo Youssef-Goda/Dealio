@@ -96,6 +96,35 @@
   <script src="flutter_bootstrap.js" async></script>
 
   <script>
+    // ── Service-worker cache-bust ─────────────────────────────────────────────
+    // Flutter web registers a service worker (flutter_service_worker.js) that
+    // caches the app shell. When a new build is deployed the old service worker
+    // can keep serving a stale shell for days (the "frozen October 7 dashboard"
+    // symptom).  The snippet below forces the SW to check for updates on every
+    // page load and immediately activates any waiting worker, so users always
+    // get the latest build without having to clear browser cache manually.
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function(registrations) {
+        registrations.forEach(function(reg) {
+          // Ask every registered worker to check for an update right now.
+          reg.update().catch(function() {});
+          // If a new worker is already waiting, skip the old one and activate.
+          if (reg.waiting) {
+            reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+          }
+        });
+      });
+
+      // When the controller (active SW) changes, reload once so the new shell loads.
+      var refreshing = false;
+      navigator.serviceWorker.addEventListener('controllerchange', function() {
+        if (!refreshing) {
+          refreshing = true;
+          window.location.reload();
+        }
+      });
+    }
+
     // Fade-out لما فلاتر يجهز
     window.addEventListener("flutter-first-frame", function() {
       const loader = document.getElementById("loading-indicator");

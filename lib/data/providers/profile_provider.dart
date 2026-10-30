@@ -83,6 +83,9 @@ class ProfileProvider with ChangeNotifier {
       _gender      != _origGender      ||
       _dob         != _origDob;
 
+  /// True when the birth date was already set on the server — it cannot be changed.
+  bool get isDobLocked => _origDob != null;
+
   /// Initials for avatar fallback (e.g. "YG").
   String get initials {
     final f = _firstName.trim();
@@ -404,7 +407,7 @@ class ProfileProvider with ChangeNotifier {
         if (_avatarUrl.isNotEmpty)   'profilePicture': _avatarUrl,
         if (_phoneNumber.isNotEmpty) 'phoneNumber':    _phoneNumber,
         if (_gender.isNotEmpty)      'gender':         _gender,
-        if (_dob != null)
+        if (_dob != null && !isDobLocked)
           'birthDate': _dob!.toIso8601String().split('T').first,
       };
 

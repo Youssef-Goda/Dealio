@@ -4,7 +4,7 @@ import 'package:dealio/data/providers/product_provider.dart';
 import 'package:dealio/data/providers/wishlist_provider.dart';
 import 'package:dealio/features/products/widgets/product_card.dart';
 import 'package:flutter/material.dart';
-import 'package:lucide_icons_flutter/lucide_icons.dart';
+
 import 'package:provider/provider.dart';
 
 class FavoritesScreen extends StatelessWidget {
@@ -177,37 +177,6 @@ class FavoritesScreen extends StatelessWidget {
       },
     );
   }
-
-  void _confirmClear(BuildContext context, WishlistProvider wishlist) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Clear all favorites?'),
-        content: const Text(
-          'All favorited products will be removed from your wishlist.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              wishlist.clear();
-              Navigator.pop(ctx);
-            },
-            child: const Text(
-              'Clear',
-              style: TextStyle(
-                color: AppColors.errorRed,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 // ─── Empty State ──────────────────────────────────────────────────────────────
@@ -252,6 +221,9 @@ class _EmptyFavoritesState extends StatelessWidget {
                 letterSpacing: 0.3,
               ),
             ),
+
+            SizedBox(height: R.h(context, 10)),
+            
             SizedBox(height: R.h(context, 10)),
             Text(
               'Tap the ♥ heart on any product\nto save it here for later.',

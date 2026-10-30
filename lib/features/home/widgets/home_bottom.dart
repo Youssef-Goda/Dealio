@@ -1,4 +1,6 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
@@ -42,7 +44,10 @@ class _HomeBottomState extends State<HomeBottom> {
   @override
   void initState() {
     super.initState();
-    _controller = SidebarXController(selectedIndex: 0, extended: true);
+    final int initialIndex =
+        kIsWeb ? _HomeBottomState._pathToIndex(Uri.base.path) : 0;
+    _controller = SidebarXController(selectedIndex: initialIndex, extended: true);
+    _controller.addListener(_onIndexChanged);
 
     Future.microtask(() => context.read<ProductProvider>().fetchProducts());
 
@@ -65,8 +70,57 @@ class _HomeBottomState extends State<HomeBottom> {
 
   @override
   void dispose() {
+    _controller.removeListener(_onIndexChanged);
     _controller.dispose();
     super.dispose();
+  }
+
+  // ── URL ↔ tab-index helpers ───────────────────────────────────────────────
+
+  static int _pathToIndex(String path) {
+    switch (path) {
+      case '/home':           return 0;
+      case '/orders':         return 1;
+      case '/cart':           return 2;
+      case '/favorites':      return 3;
+      case '/profile':        return 4;
+      case '/search':         return 5;
+      case '/admin/products': return 6;
+      case '/admin/users':    return 7;
+      case '/vendor':         return 8;
+      case '/moderation':     return 9;
+      case '/owner-control':  return 10;
+      case '/settings':       return 11;
+      case '/admin/orders':   return 12;
+      default:                return 0; // fallback to Home
+    }
+  }
+
+  static String _indexToPath(int index) {
+    const paths = [
+      '/home',           // 0
+      '/orders',         // 1
+      '/cart',           // 2
+      '/favorites',      // 3
+      '/profile',        // 4
+      '/search',         // 5
+      '/admin/products', // 6
+      '/admin/users',    // 7
+      '/vendor',         // 8
+      '/moderation',     // 9
+      '/owner-control',  // 10
+      '/settings',       // 11
+      '/admin/orders',   // 12
+    ];
+    return (index >= 0 && index < paths.length) ? paths[index] : '/home';
+  }
+
+  /// Called by the SidebarXController listener; updates the browser URL.
+  void _onIndexChanged() {
+    if (!kIsWeb) return;
+    final path = _indexToPath(_controller.selectedIndex);
+    // Use uri: (location: was deprecated after Flutter v3.8.0-3.0.pre)
+    SystemNavigator.routeInformationUpdated(uri: Uri(path: path), replace: true);
   }
 
   int _mapBottomNavToPageIndex(int bottomNavIndex) {

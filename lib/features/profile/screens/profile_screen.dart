@@ -230,10 +230,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _pickDob() async {
     final profile = context.read<ProfileProvider>();
+
+    // DOB is immutable once set — silently ignore taps on locked field
+    if (profile.isDobLocked) return;
+
     final picked = await showDatePicker(
       context: context,
       initialDate: profile.dob ?? DateTime(1995, 1, 1),
-      firstDate: DateTime(1930),
+      firstDate: DateTime(1900),
       lastDate: DateTime.now(),
       builder: (ctx, child) => Theme(
         data: Theme.of(ctx).copyWith(
@@ -245,7 +249,52 @@ class _ProfileScreenState extends State<ProfileScreen> {
         child: child!,
       ),
     );
-    if (picked != null) profile.setDob(picked);
+
+    if (picked == null) return;
+    if (!mounted) return;
+
+    // Basic validation: not in the future, not before 1900
+    if (picked.isAfter(DateTime.now())) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Birth date cannot be in the future.')),
+      );
+      return;
+    }
+    if (picked.isBefore(DateTime(1900))) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a valid birth date.')),
+      );
+      return;
+    }
+
+    // Warn that this cannot be changed later
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Set birth date?'),
+        content: const Text(
+          'Your birth date cannot be changed after it is saved. '
+          'Please make sure it is correct.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text(
+              'Confirm',
+              style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      profile.setDob(picked);
+    }
   }
 
   // ────────────────────────────────────────────────────────────────────────────
@@ -1238,36 +1287,84 @@ class _PersonalInfoSection extends StatelessWidget {
             icon: LucideIcons.cake,
             label: 'Date of Birth',
             isDark: isDark,
-            trailing: GestureDetector(
-              onTap: onPickDob,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    profile.dob != null
-                        ? DateFormat('dd MMM yyyy').format(profile.dob!)
-                        : 'Not set',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: R.font(context, 13.5),
-                      color: profile.dob != null
-                          ? (isDark
-                                ? AppColors.darkTextPrimary
-                                : AppColors.textPrimaryDark)
-                          : (isDark
-                                ? AppColors.darkTextMuted
-                                : AppColors.textHint),
+            trailing: profile.isDobLocked
+                // ── Locked: read-only with lock icon + helper text ──────────
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            profile.dob != null
+                                ? DateFormat('dd MMM yyyy').format(profile.dob!)
+                                : 'Not set',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: R.font(context, 13.5),
+                              color: profile.dob != null
+                                  ? (isDark
+                                        ? AppColors.darkTextPrimary
+                                        : AppColors.textPrimaryDark)
+                                  : (isDark
+                                        ? AppColors.darkTextMuted
+                                        : AppColors.textHint),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          const Icon(
+                            LucideIcons.lockKeyhole,
+                            size: 14,
+                            color: AppColors.primary,
+                          ),
+                        ],
+                      ),
+                      Text(
+                        'Cannot be changed after it is set',
+                        style: TextStyle(
+                          fontSize: R.font(context, 10),
+                          color: isDark
+                              ? AppColors.darkTextMuted
+                              : AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  )
+                // ── Unlocked: tappable calendar ──────────────────────────────
+                : MouseRegion(
+                    cursor: SystemMouseCursors.click,
+                    child: GestureDetector(
+                      onTap: onPickDob,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            profile.dob != null
+                                ? DateFormat('dd MMM yyyy').format(profile.dob!)
+                                : 'Not set',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: R.font(context, 13.5),
+                              color: profile.dob != null
+                                  ? (isDark
+                                        ? AppColors.darkTextPrimary
+                                        : AppColors.textPrimaryDark)
+                                  : (isDark
+                                        ? AppColors.darkTextMuted
+                                        : AppColors.textHint),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          const Icon(
+                            LucideIcons.calendarDays,
+                            size: 15,
+                            color: AppColors.primary,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                  const SizedBox(width: 6),
-                  const Icon(
-                    LucideIcons.calendarDays,
-                    size: 15,
-                    color: AppColors.primary,
-                  ),
-                ],
-              ),
-            ),
           ),
 
           _Divider(isDark: isDark),

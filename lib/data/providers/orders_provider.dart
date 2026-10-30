@@ -281,6 +281,61 @@ class OrdersProvider with ChangeNotifier {
     }
   }
 
+  // ───────────────────────── fetchOrderById ────────────────────
+  /// GET /api/orders/:id — Fetch a single order by its internal UUID.
+  ///
+  /// Returns the [Order] on success, or null if not found / unauthorized.
+  /// Also inserts / replaces the order in the local [_orders] list so
+  /// [OrderDetailScreen] can read it via context.select without a separate
+  /// provider refresh.
+  Future<Order?> fetchOrderById(String orderId) async {
+    final token = await _getToken();
+    if (token == null) {
+      debugPrint('❌ [OrdersProvider] fetchOrderById → no token');
+      return null;
+    }
+
+    try {
+      final response = await http.get(
+        Uri.parse('${AppConstants.baseUrl}/orders/$orderId'),
+        headers: _authHeaders(token),
+      );
+
+      debugPrint(
+        '📡 [OrdersProvider] GET /orders/$orderId → ${response.statusCode}',
+      );
+
+      if (response.statusCode == 200) {
+        final body = jsonDecode(response.body) as Map<String, dynamic>;
+        final raw = body['data'] as Map<String, dynamic>?;
+        if (raw == null) return null;
+        final order = Order.fromJson(raw);
+
+        // Upsert into local list so OrderDetailScreen.context.select picks it up
+        final idx = _orders.indexWhere((o) => o.id == orderId);
+        if (idx != -1) {
+          _orders[idx] = order;
+        } else {
+          _orders.insert(0, order);
+        }
+        notifyListeners();
+
+        debugPrint('✅ [OrdersProvider] fetchOrderById → ${order.id}');
+        return order;
+      } else {
+        final body = _tryDecode(response.body);
+        final msg =
+            body?['message']?.toString() ??
+            'Failed to load order (${response.statusCode})';
+        debugPrint('❌ [OrdersProvider] fetchOrderById error: $msg');
+        return null;
+      }
+    } catch (e) {
+      debugPrint('❌ [OrdersProvider] fetchOrderById exception: $e');
+      return null;
+    }
+  }
+
   void clearOrders() {
     _orders = [];
     _error = null;

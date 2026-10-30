@@ -72,7 +72,7 @@
 //       email: emailController.text.trim(),
 //       password: passwordController.text.trim(),
 //     );
-//     if (result['success']) {
+//     if (result['success'] == true) {
 //       if (!mounted) return;
 //       // Backup: ensure tempEmail is set even if provider didn't set it
 //       authProvider.tempEmail = emailController.text.trim();
@@ -361,7 +361,7 @@
 //                                     onPressed: auth.isLoading ? null : () async {
 //                                       final result = await auth.signInWithGoogle();
 //                                       if (!mounted) return;
-//                                       if (result['success']) {
+//                                       if (result['success'] == true) {
 //                                         showTopSnackBar(
 //                                           Overlay.of(context),
 //                                           CustomSnackBar.info(
@@ -614,11 +614,57 @@ class _RegisterScreenState extends State<RegisterScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final auth = context.read<AuthProvider>();
-      if (auth.tempEmail.isNotEmpty) {
-        emailController.text = auth.tempEmail;
+      if (!mounted) return;
+      _populateFromAuthProvider();
+      final args = ModalRoute.of(context)?.settings.arguments;
+      if (args is Map && args['isEditingEmail'] == true) {
+        emailFocusNode.requestFocus();
+        emailController.selection = TextSelection(
+          baseOffset: 0,
+          extentOffset: emailController.text.length,
+        );
       }
     });
+  }
+
+  void _populateFromAuthProvider() {
+    if (!mounted) return;
+    final auth = context.read<AuthProvider>();
+    final form = auth.signUpFormData;
+
+    final String savedFirstName =
+        (form?.firstName ?? auth.signUpFirstName ?? '').trim();
+    final String savedLastName =
+        (form?.lastName ?? auth.signUpLastName ?? '').trim();
+    final String savedEmail =
+        (form?.email ?? auth.signUpEmail ?? auth.tempEmail ?? '').trim();
+    final String savedPassword =
+        form?.password ?? auth.signUpPassword ?? '';
+    final String savedConfirmPassword =
+        form?.confirmPassword ?? auth.signUpConfirmPassword ?? '';
+
+    if (savedFirstName.isNotEmpty && firstNameController.text != savedFirstName) {
+      firstNameController.text = savedFirstName;
+    }
+    if (savedLastName.isNotEmpty && lastNameController.text != savedLastName) {
+      lastNameController.text = savedLastName;
+    }
+    if (savedEmail.isNotEmpty && emailController.text != savedEmail) {
+      emailController.text = savedEmail;
+    } else if (emailController.text.isEmpty) {
+      final args = ModalRoute.of(context)?.settings.arguments;
+      if (args is String && args.isNotEmpty) {
+        emailController.text = args;
+        auth.updateSignUpFormData(email: args, notify: false);
+      }
+    }
+    if (savedPassword.isNotEmpty && passwordController.text != savedPassword) {
+      passwordController.text = savedPassword;
+    }
+    if (savedConfirmPassword.isNotEmpty &&
+        confirmPasswordController.text != savedConfirmPassword) {
+      confirmPasswordController.text = savedConfirmPassword;
+    }
   }
 
   bool _isEmailValid(String email) {
@@ -644,18 +690,37 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (!_formKey.currentState!.validate()) return;
 
     final authProvider = context.read<AuthProvider>();
+    authProvider.updateSignUpFormData(
+      firstName: formatName(firstNameController.text.trim()),
+      lastName: formatName(lastNameController.text.trim()),
+      email: emailController.text.trim(),
+      password: passwordController.text.trim(),
+      confirmPassword: confirmPasswordController.text.trim(),
+      notify: false,
+    );
+
     final result = await authProvider.register(
       firstName: formatName(firstNameController.text.trim()),
       lastName: formatName(lastNameController.text.trim()),
       email: emailController.text.trim(),
       password: passwordController.text.trim(),
+      confirmPassword: confirmPasswordController.text.trim(),
     );
 
     if (!mounted) return;
 
-    if (result['success']) {
+    if (result['success'] == true) {
       authProvider.tempEmail = emailController.text.trim();
-      Navigator.pushReplacementNamed(context, "/otp");
+      final navResult = await Navigator.pushNamed(context, "/otp");
+      if (!mounted) return;
+      _populateFromAuthProvider();
+      if (navResult is Map && navResult['isEditingEmail'] == true) {
+        emailFocusNode.requestFocus();
+        emailController.selection = TextSelection(
+          baseOffset: 0,
+          extentOffset: emailController.text.length,
+        );
+      }
     } else {
       String msg = (result['message'] ?? "").toLowerCase();
       if (msg.contains("email")) {
@@ -830,6 +895,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                           nextFocus: lastNameFocusNode,
                                           allowSpaces: true,
                                           onChanged: (v) {
+                                            context
+                                                .read<AuthProvider>()
+                                                .updateSignUpFormData(
+                                                  firstName: v,
+                                                  notify: false,
+                                                );
                                             if (v.endsWith(' ')) {
                                               String cleanValue = v.trim();
                                               firstNameController
@@ -861,6 +932,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                           autofill: AutofillHints.familyName,
                                           nextFocus: emailFocusNode,
                                           allowSpaces: false,
+                                          onChanged: (v) {
+                                            context
+                                                .read<AuthProvider>()
+                                                .updateSignUpFormData(
+                                                  lastName: v,
+                                                  notify: false,
+                                                );
+                                          },
                                         ),
                                       ),
                                     ],
@@ -880,6 +959,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                     focusNode: passwordFocusNode,
                                     nextFocus: confirmFocusNode,
                                     onChanged: (v) {
+                                      context
+                                          .read<AuthProvider>()
+                                          .updateSignUpFormData(
+                                            password: v,
+                                            notify: false,
+                                          );
                                       if (_autoValidate) {
                                         _formKey.currentState!.validate();
                                       }
@@ -906,6 +991,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                     hint: 'Repeat password',
                                     visible: confirmPasswordVisible,
                                     focusNode: confirmFocusNode,
+                                    onChanged: (v) {
+                                      context
+                                          .read<AuthProvider>()
+                                          .updateSignUpFormData(
+                                            confirmPassword: v,
+                                            notify: false,
+                                          );
+                                    },
                                     validator: (v) {
                                       if (v == null || v.isEmpty) {
                                         return 'Confirm password';
@@ -1047,7 +1140,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                               final result = await auth
                                                   .signInWithGoogle();
                                               if (!mounted) return;
-                                              if (result['success']) {
+                                              if (result['success'] == true) {
                                                 showTopSnackBar(
                                                   Overlay.of(context),
                                                   CustomSnackBar.info(
@@ -1252,7 +1345,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
       inputFormatters: [FilteringTextInputFormatter.deny(RegExp(r'\s'))],
       onChanged: (v) {
         _onFieldChanged();
-        context.read<AuthProvider>().tempEmail = v;
+        context.read<AuthProvider>().updateSignUpFormData(
+              email: v,
+              notify: false,
+            );
       },
       decoration: _inputDecoration(
         'Email',

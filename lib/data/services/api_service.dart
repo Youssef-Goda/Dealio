@@ -98,8 +98,15 @@ class ApiService {
       _refreshCompleter!.complete(null);
       _refreshCompleter = null;
 
-      // Clear session on token revocation / expiration
-      await prefs.clear();
+      // Clear ONLY auth-related keys — never wipe the entire SharedPreferences.
+      // A full prefs.clear() would destroy unrelated app state and, critically,
+      // on restart would allow a cached Supabase OAuth session (e.g. an admin who
+      // previously signed in with Google on the same device) to silently overwrite
+      // the now-missing customer session — the root cause of the role-switching bug.
+      await prefs.remove('accessToken');
+      await prefs.remove('refreshToken');
+      await prefs.remove('userData');
+      await prefs.setBool('isLoggedIn', false);
       onSessionExpired?.call();
       return null;
     } catch (e) {

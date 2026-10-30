@@ -17,7 +17,6 @@ import 'package:dealio/data/models/order_model.dart';
 import 'package:dealio/features/checkout/widgets/fawry_cash_modal.dart';
 import 'package:flutter_paymob_sdk/flutter_paymob_sdk.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:flutter/foundation.dart';
 import 'package:universal_html/html.dart' as html;
 
 class CheckoutScreen extends StatefulWidget {

@@ -3,6 +3,7 @@ import 'package:dealio/data/models/order_model.dart';
 import 'package:dealio/data/providers/cart_provider.dart';
 import 'package:dealio/data/providers/checkout_provider.dart';
 import 'package:dealio/data/services/api_service.dart';
+import 'package:dealio/features/orders/screens/order_detail_screen.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -210,24 +211,37 @@ class _CheckoutCallbackScreenState extends State<CheckoutCallbackScreen>
   }
 
   void _navigateToOrderDetails() {
-    if (_orderId != null) {
-      final dummyOrder = Order(
-        id: _orderId!,
-        userId: '',
-        status: OrderStatus.pending,
-        subtotal: 0,
-        tax: 0,
-        total: 0,
-        paymentMethod: PaymentMethod.online,
-      );
-      Navigator.of(context).pushNamedAndRemoveUntil(
-        '/order-detail',
-        (r) => r.settings.name == '/home',
-        arguments: dummyOrder,
-      );
-    } else {
-      Navigator.of(context).pushNamedAndRemoveUntil('/my-orders', (_) => false);
+    if (_orderId == null) {
+      // No order ID — fall back to My Orders with a clean /home at the bottom of the stack.
+      final nav = Navigator.of(context);
+      nav.pushNamedAndRemoveUntil('/home', (_) => false);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        nav.pushNamed('/my-orders');
+      });
+      return;
     }
+
+    final stubOrder = Order(
+      id: _orderId!,
+      userId: '',
+      status: OrderStatus.pending,
+      subtotal: 0,
+      tax: 0,
+      total: 0,
+      paymentMethod: PaymentMethod.online,
+    );
+
+    // Capture navigator before any async gap; build a clean stack rooted at /home.
+    final nav = Navigator.of(context);
+    nav.pushNamedAndRemoveUntil('/home', (_) => false);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      nav.push(
+        MaterialPageRoute<void>(
+          builder: (_) => const OrderDetailScreen(),
+          settings: RouteSettings(name: '/order-detail', arguments: stubOrder),
+        ),
+      );
+    });
   }
 
   @override

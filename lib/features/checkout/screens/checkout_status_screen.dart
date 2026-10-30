@@ -3,6 +3,7 @@ import 'package:dealio/data/providers/cart_provider.dart';
 import 'package:dealio/data/providers/checkout_provider.dart';
 import 'package:dealio/data/models/order_model.dart';
 import 'package:dealio/data/services/api_service.dart';
+import 'package:dealio/features/orders/screens/order_detail_screen.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -157,33 +158,57 @@ class _CheckoutStatusScreenState extends State<CheckoutStatusScreen>
   }
 
   // ── Navigation helpers ───────────────────────────────────────────────────
-  void _goHome() =>
-      Navigator.of(context).pushNamedAndRemoveUntil('/home', (_) => false);
+  void _goHome() {
+    // Always build a clean stack anchored at /home so back-navigation works
+    // whether we arrived via cold-start (Paymob redirect) or push.
+    Navigator.of(context).pushNamedAndRemoveUntil('/home', (_) => false);
+  }
 
-  void _goOrders() => Navigator.of(context).pushNamedAndRemoveUntil(
-        '/my-orders',
-        (r) => r.settings.name == '/home',
-      );
+  void _goOrders() {
+    // Build stack: /home → /my-orders
+    // We first clear to /home (creates it if absent) then push /my-orders in the
+    // next frame so back from My Orders goes to Home — even on a cold-start.
+    final nav = Navigator.of(context);
+    nav.pushNamedAndRemoveUntil('/home', (_) => false);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      nav.pushNamed('/my-orders');
+    });
+  }
 
   void _goOrderDetails() {
-    if (_orderId != null) {
-      final dummyOrder = Order(
-        id: _orderId!,
-        userId: '',
-        status: OrderStatus.pending,
-        subtotal: 0,
-        tax: 0,
-        total: 0,
-        paymentMethod: PaymentMethod.online,
-      );
-      Navigator.of(context).pushNamedAndRemoveUntil(
-        '/order-detail',
-        (r) => r.settings.name == '/home',
-        arguments: dummyOrder,
-      );
-    } else {
+    if (_orderId == null) {
       _goOrders();
+      return;
     }
+
+    // Build a minimal stub Order to show the detail screen immediately.
+    // The OrderDetailScreen's _tryFetchIfNeeded will call fetchOrderById
+    // to populate items / address / totals within one frame.
+    final stubOrder = Order(
+      id: _orderId!,
+      userId: '',
+      status: OrderStatus.pending,
+      subtotal: 0,
+      tax: 0,
+      total: 0,
+      paymentMethod: PaymentMethod.online,
+    );
+
+    // Capture the navigator before any async gap.
+    final nav = Navigator.of(context);
+
+    // Ensure a valid /home is always at the bottom of the stack so the user
+    // can press Back and reach Home — even after a Paymob cold-start redirect
+    // where no /home exists in the navigator history.
+    nav.pushNamedAndRemoveUntil('/home', (_) => false);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      nav.push(
+        MaterialPageRoute<void>(
+          builder: (_) => const OrderDetailScreen(),
+          settings: RouteSettings(name: '/order-detail', arguments: stubOrder),
+        ),
+      );
+    });
   }
 
   @override
@@ -445,11 +470,11 @@ class _PrimaryButton extends StatelessWidget {
       height: 52,
       child: ElevatedButton.icon(
         onPressed: onPressed,
-        icon: Icon(icon, size: 18, color: Colors.white),
+        icon: Icon(icon, size: 18, color: AppColors.secondary),
         label: Text(
           label,
           style: const TextStyle(
-            color: Colors.white,
+            color: AppColors.secondary,
             fontWeight: FontWeight.w800,
             fontSize: 15,
           ),

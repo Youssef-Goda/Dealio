@@ -14,12 +14,119 @@ import 'package:dealio/data/services/api_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:dealio/data/providers/profile_provider.dart';
 
+// ── Sign Up Form Data Model ──────────────────────────────────────────────────
+class SignUpFormData {
+  final String firstName;
+  final String lastName;
+  final String email;
+  final String password;
+  final String confirmPassword;
+
+  static const SignUpFormData empty = SignUpFormData();
+
+  const SignUpFormData({
+    this.firstName = '',
+    this.lastName = '',
+    this.email = '',
+    this.password = '',
+    this.confirmPassword = '',
+  });
+
+  SignUpFormData copyWith({
+    String? firstName,
+    String? lastName,
+    String? email,
+    String? password,
+    String? confirmPassword,
+  }) {
+    return SignUpFormData(
+      firstName: firstName ?? this.firstName,
+      lastName: lastName ?? this.lastName,
+      email: email ?? this.email,
+      password: password ?? this.password,
+      confirmPassword: confirmPassword ?? this.confirmPassword,
+    );
+  }
+
+  bool get isEmpty =>
+      firstName.isEmpty &&
+      lastName.isEmpty &&
+      email.isEmpty &&
+      password.isEmpty &&
+      confirmPassword.isEmpty;
+
+  bool get isNotEmpty => !isEmpty;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SignUpFormData &&
+          runtimeType == other.runtimeType &&
+          firstName == other.firstName &&
+          lastName == other.lastName &&
+          email == other.email &&
+          password == other.password &&
+          confirmPassword == other.confirmPassword;
+
+  @override
+  int get hashCode => Object.hash(
+        firstName,
+        lastName,
+        email,
+        password,
+        confirmPassword,
+      );
+}
+
 class AuthProvider with ChangeNotifier {
   // ── State ──────────────────────────────────────────────────────────────────
   bool _isLoggedIn = false;
   bool _isInitialized = false;
   Map<String, dynamic>? _userData;
   bool _isLoading = false;
+
+  // ── Sign Up Form Draft State ──────────────────────────────────────────────
+  SignUpFormData _signUpFormData = SignUpFormData.empty;
+  SignUpFormData get signUpFormData => _signUpFormData ?? SignUpFormData.empty;
+
+  String get signUpFirstName => (_signUpFormData?.firstName) ?? '';
+  String get signUpLastName => (_signUpFormData?.lastName) ?? '';
+  String get signUpEmail => (_signUpFormData?.email) ?? '';
+  String get signUpPassword => (_signUpFormData?.password) ?? '';
+  String get signUpConfirmPassword => (_signUpFormData?.confirmPassword) ?? '';
+
+  void updateSignUpFormData({
+    String? firstName,
+    String? lastName,
+    String? email,
+    String? password,
+    String? confirmPassword,
+    bool notify = true,
+  }) {
+    final current = _signUpFormData ?? SignUpFormData.empty;
+    final updated = current.copyWith(
+      firstName: firstName,
+      lastName: lastName,
+      email: email,
+      password: password,
+      confirmPassword: confirmPassword,
+    );
+    if (_signUpFormData != null && current == updated && (email == null || email == _tempEmail)) {
+      return;
+    }
+    _signUpFormData = updated;
+    if (email != null && email.isNotEmpty) {
+      _tempEmail = email;
+    }
+    if (notify) {
+      notifyListeners();
+    }
+  }
+
+  void clearSignUpFormData() {
+    _signUpFormData = SignUpFormData.empty;
+    notifyListeners();
+  }
 
   // ── Getters ────────────────────────────────────────────────────────────────
   String? get token        => _userData?['accessToken']?.toString();
@@ -54,14 +161,32 @@ class AuthProvider with ChangeNotifier {
 
   // ── OTP Timer ──────────────────────────────────────────────────────────────
   String _tempEmail = '';
-  String get tempEmail => _tempEmail;
+  String get tempEmail =>
+      _tempEmail.isNotEmpty ? _tempEmail : (_signUpFormData?.email ?? '');
   int _remainingSeconds = 0;
   int get remainingSeconds => _remainingSeconds;
   Timer? _timer;
   String _lastResetEmail = '';
+  String _lastOtpEmail = '';
+  bool _isOtpPending = false;
+
+  String get lastOtpEmail => _lastOtpEmail;
+  bool get isOtpPending => _isOtpPending && _lastOtpEmail.isNotEmpty;
+  bool get isOtpTimerRunning =>
+      (_timer?.isActive ?? false) && _remainingSeconds > 0;
+
+  @visibleForTesting
+  void setPendingOtpForTesting(String email, {int seconds = 59}) {
+    _lastOtpEmail = email;
+    _tempEmail = email;
+    _isOtpPending = true;
+    startOtpTimer(seconds: seconds, force: true);
+  }
 
   set tempEmail(String value) {
     _tempEmail = value;
+    final current = _signUpFormData ?? SignUpFormData.empty;
+    _signUpFormData = current.copyWith(email: value);
     notifyListeners();
   }
 
@@ -619,18 +744,51 @@ Future<void> loadUserData() async {
     required String lastName,
     required String email,
     required String password,
+    String confirmPassword = '',
   }) async {
+    final cleanEmail = email.trim();
+    final normalizedEmail = cleanEmail.toLowerCase();
+
+    updateSignUpFormData(
+      firstName: firstName,
+      lastName: lastName,
+      email: cleanEmail,
+      password: password,
+      confirmPassword: confirmPassword,
+      notify: false,
+    );
+
+    // 1. Compare newly submitted email with the previously stored/pending OTP email
+    if (_isOtpPending &&
+        _lastOtpEmail.isNotEmpty &&
+        _lastOtpEmail.toLowerCase() == normalizedEmail) {
+      debugPrint(
+        'ℹ️ [Auth] Same email resubmitted with pending OTP: $cleanEmail. Skipping new OTP request.',
+      );
+      _tempEmail = cleanEmail;
+      notifyListeners();
+      return {
+        'success': true,
+        'message': 'Verification code already sent',
+        'isExistingOtp': true,
+      };
+    }
+
+    // 2. Email has changed (or no active pending OTP) -> trigger API call & reset timer
     setLoading(true);
     try {
       final result = await _authRepo.register({
         'firstName': firstName,
         'lastName': lastName,
-        'email': email,
+        'email': cleanEmail,
         'password': password,
       });
-      // ✅ Save email so OTP screen can use it — this was missing!
+
       if (result['success'] == true) {
-        _tempEmail = email;
+        _tempEmail = cleanEmail;
+        _lastOtpEmail = cleanEmail;
+        _isOtpPending = true;
+        startOtpTimer(force: true);
         notifyListeners();
       }
       return result;
@@ -659,8 +817,12 @@ Future<void> loadUserData() async {
       if (result['success'] == true) {
         final data = result['data'];
         if (data is Map<String, dynamic>) {
-          // 🔥 بنسيف السيشن فوراً في الحالتين عشان نضمن إن الداتا تلمس الحديد وما تضربش كراش
-          await _saveUserSession(data);
+          // Only save a session for registration OTP — NOT for password reset.
+          // For password reset, the server returns a temporary token used only
+          // to authorize the /reset-password call; we must NOT log the user in.
+          if (!isForPasswordReset) {
+            await _saveUserSession(data);
+          }
           
           final String authToken = _userData?['accessToken']?.toString() ?? '';
           if (authToken.isNotEmpty) {
@@ -669,6 +831,11 @@ Future<void> loadUserData() async {
             
             // لو مش ريسيت باسورد، ممكن نعمل مزامنة سريعة للبروفايل كمان للتأكيد
             if (!isForPasswordReset) {
+              clearSignUpFormData();
+              _tempEmail = '';
+              _lastOtpEmail = '';
+              _isOtpPending = false;
+              stopOtpTimer();
               _syncProfileFromServer(authToken);
             }
           }
@@ -725,7 +892,12 @@ Future<void> loadUserData() async {
       final result = await _authRepo.sendResetCode(email);
       if (result['success'] == true) {
         _lastResetEmail = email;
-        _userData = {'email': email};
+        // ⚠️ SECURITY FIX: Do NOT wipe _userData here.
+        // Overwriting the entire map with just {'email': email} would destroy
+        // the active user session (token + role) if the user is currently
+        // logged in and visits the forgot-password screen.
+        // We only store the email for the OTP verification step that follows.
+        _tempEmail = email;
         startOtpTimer();
       }
       return result;
@@ -762,7 +934,18 @@ Future<void> loadUserData() async {
   Future<Map<String, dynamic>> resendOtp() async {
     setLoading(true);
     try {
-      return await _authRepo.resendOtp(_userData?['email'] ?? '');
+      final emailToSend = (_userData?['email']?.toString().isNotEmpty == true)
+          ? _userData!['email'].toString()
+          : (_tempEmail.isNotEmpty
+              ? _tempEmail
+              : (_signUpFormData?.email ?? ''));
+      final result = await _authRepo.resendOtp(emailToSend);
+      if (result['success'] == true) {
+        _isOtpPending = true;
+        _lastOtpEmail = emailToSend;
+        startOtpTimer(force: true);
+      }
+      return result;
     } catch (e) {
       return {'success': false, 'message': 'Network Error: $e'};
     } finally {
@@ -811,6 +994,9 @@ Future<void> loadUserData() async {
       _isLoggedIn = false;
       _tempEmail = '';
       _lastResetEmail = '';
+      _lastOtpEmail = '';
+      _isOtpPending = false;
+      clearSignUpFormData();
       stopOtpTimer();
 
       debugPrint('✅ [Auth] Logged out');
@@ -824,10 +1010,13 @@ Future<void> loadUserData() async {
   // OTP TIMER
   // ══════════════════════════════════════════════════════════════════════════
 
-  void startOtpTimer() {
-    if (_timer?.isActive ?? false) return;
+  void startOtpTimer({int seconds = 59, bool force = false}) {
+    if (!force && (_timer?.isActive ?? false) && _remainingSeconds > 0) {
+      return;
+    }
     _timer?.cancel();
-    _remainingSeconds = 59;
+    _remainingSeconds = seconds;
+    notifyListeners();
     _timer = Timer.periodic(const Duration(seconds: 1), (t) {
       if (_remainingSeconds > 0) {
         _remainingSeconds--;
@@ -840,6 +1029,7 @@ Future<void> loadUserData() async {
 
   void stopOtpTimer() {
     _timer?.cancel();
+    _timer = null;
     _remainingSeconds = 0;
     notifyListeners();
   }

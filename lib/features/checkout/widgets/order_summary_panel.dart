@@ -207,7 +207,7 @@ class OrderSummaryPanel extends StatelessWidget {
                       )
                     : const Icon( 
                         LucideIcons.shieldCheck,
-                        color: Colors.white,
+                        color: AppColors.secondary,
                         size: 20,
                       ),
                 label: Text(  
@@ -217,7 +217,7 @@ class OrderSummaryPanel extends StatelessWidget {
                           ? 'Initiating secure payment...'
                           : 'Pay EGP ${cart.total.toStringAsFixed(2)}',
                   style: const TextStyle(
-                    color: Colors.white,
+                    color: AppColors.secondary,
                     fontSize: 16,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 0.3,

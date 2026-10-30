@@ -1,6 +1,5 @@
 import 'package:dealio/core/constants/colors.dart';
 import 'package:dealio/core/utils/responsive_helper.dart';
-import 'package:dealio/data/models/order_model.dart'; // تأكد من استيراد الموديل
 import 'package:dealio/data/providers/auth_provider.dart';
 import 'package:dealio/data/providers/orders_provider.dart';
 import 'package:dealio/features/orders/widgets/order_card.dart';

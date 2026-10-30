@@ -71,4 +71,93 @@ class CategoryProvider with ChangeNotifier {
     _categories = [];
     await fetchCategories();
   }
+
+  // ── Admin CRUD ───────────────────────────────────────────────────────────────
+
+  /// Creates a new category. Returns null on success, error message on failure.
+  Future<String?> createCategory(
+    String token,
+    String name, {
+    String? imageUrl,
+  }) async {
+    try {
+      final url = Uri.parse('${AppConstants.baseUrl}/categories');
+      final body = <String, dynamic>{'name': name};
+      if (imageUrl != null && imageUrl.isNotEmpty) body['iconUrl'] = imageUrl;
+
+      final res = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode(body),
+      );
+      final decoded = jsonDecode(res.body) as Map<String, dynamic>;
+      if (res.statusCode == 201 || decoded['success'] == true) {
+        await fetchCategories();
+        return null; // success
+      }
+      return decoded['message']?.toString() ?? 'Failed to create category';
+    } catch (e) {
+      return 'Network error: $e';
+    }
+  }
+
+  /// Updates an existing category. Returns null on success, error message on failure.
+  Future<String?> updateCategory(
+    String token,
+    String id,
+    String name, {
+    String? imageUrl,
+  }) async {
+    try {
+      final url = Uri.parse('${AppConstants.baseUrl}/categories/$id');
+      final body = <String, dynamic>{'name': name};
+      // Always send iconUrl so the backend can clear it too
+      body['iconUrl'] = (imageUrl != null && imageUrl.isNotEmpty) ? imageUrl : null;
+
+      final res = await http.put(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode(body),
+      );
+      final decoded = jsonDecode(res.body) as Map<String, dynamic>;
+      if (res.statusCode == 200 || decoded['success'] == true) {
+        await fetchCategories();
+        return null; // success
+      }
+      return decoded['message']?.toString() ?? 'Failed to update category';
+    } catch (e) {
+      return 'Network error: $e';
+    }
+  }
+
+  /// Deletes a category. Returns null on success, error message on failure.
+  Future<String?> deleteCategory(String token, String id) async {
+    try {
+      final url = Uri.parse('${AppConstants.baseUrl}/categories/$id');
+      final res = await http.delete(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+      final decoded = jsonDecode(res.body) as Map<String, dynamic>;
+      if (res.statusCode == 200 || decoded['success'] == true) {
+        // Remove locally and deselect if it was selected
+        _categories.removeWhere((c) => c.id == id);
+        if (_selectedCategoryId == id) _selectedCategoryId = null;
+        notifyListeners();
+        return null; // success
+      }
+      return decoded['message']?.toString() ?? 'Failed to delete category';
+    } catch (e) {
+      return 'Network error: $e';
+    }
+  }
 }

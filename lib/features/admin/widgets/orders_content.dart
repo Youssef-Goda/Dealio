@@ -1337,6 +1337,40 @@ class _Table extends StatelessWidget {
     if (prov.isLoading && prov.orders.isEmpty)
       return const AdminTableSkeleton();
 
+    // Show a meaningful error when the fetch failed (e.g. 403 wrong token).
+    if (orders.isEmpty && prov.error != null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              LucideIcons.triangleAlert,
+              size: 48,
+              color: Colors.red.withValues(alpha: 0.6),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Could not load orders.',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: Theme.of(context).hintColor,
+                fontSize: 14,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              prov.error!,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Theme.of(context).hintColor.withValues(alpha: 0.6),
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     if (orders.isEmpty) {
       return Center(
         child: Column(

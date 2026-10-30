@@ -261,8 +261,10 @@ class _CartScreenState extends State<CartScreen>
               ),
             ),
             const SizedBox(height: 32),
+          
             _GoldenButton(
               label: 'Start Shopping',
+            
               icon: Icons.storefront_outlined,
               onTap: () {
                 // Pop back to home content (index 0 on SidebarXController)
