@@ -9,46 +9,52 @@ class ApiService {
   static const String _defaultUnauthorizedMessage =
       'Your session has expired. Please log in again.';
 
-  static void Function()? onSessionExpired;
+  static bool Function(String expiredAccessToken)? onSessionExpired;
+  static void Function(
+    String previousRefreshToken,
+    String accessToken,
+    String refreshToken,
+  )?
+  onTokensRefreshed;
 
   // ── Single-flight lock for token refresh ───────────────────────────────────
   static Completer<String?>? _refreshCompleter;
+  static String? _refreshingAccessToken;
 
   /// Refreshes the access token using the stored refreshToken.
   /// Uses a single-flight lock so multiple simultaneous 401s generate ONLY ONE refresh request.
-  static Future<String?> refreshAccessToken() async {
+  static Future<String?> refreshAccessToken({
+    required String failedAccessToken,
+  }) async {
     // If a refresh is already in progress, wait for its result
     if (_refreshCompleter != null) {
-      debugPrint('⏳ [ApiService] Refresh already in progress, waiting...');
+      if (_refreshingAccessToken != failedAccessToken.trim()) return null;
       return await _refreshCompleter!.future;
     }
 
-    _refreshCompleter = Completer<String?>();
+    final completer = Completer<String?>();
+    _refreshCompleter = completer;
+    _refreshingAccessToken = failedAccessToken.trim();
     debugPrint('🔄 [ApiService] Initiating token refresh...');
 
     try {
       final prefs = await SharedPreferences.getInstance();
-      String? currentRefreshToken = prefs.getString('refreshToken');
-
-      // Fallback: check stored userData JSON if standalone key is absent
-      if (currentRefreshToken == null || currentRefreshToken.isEmpty) {
-        final rawUser = prefs.getString('userData');
-        if (rawUser != null) {
-          final decoded = _tryDecodeJson(rawUser);
-          currentRefreshToken = decoded?['refreshToken']?.toString();
-        }
+      await prefs.reload();
+      final expectedAccessToken = failedAccessToken.trim();
+      if (!_sessionStillUsesAccessToken(prefs, expectedAccessToken)) {
+        return _finishRefresh(completer, null);
       }
 
-      if (currentRefreshToken != null) {
-        currentRefreshToken = currentRefreshToken.trim();
-      }
+      final currentRefreshToken = _readStoredRefreshToken(prefs);
 
       if (currentRefreshToken == null || currentRefreshToken.isEmpty) {
         debugPrint('❌ [ApiService] No refresh token available in storage.');
-        _refreshCompleter!.complete(null);
-        _refreshCompleter = null;
-        onSessionExpired?.call();
-        return null;
+        return _expireSessionIfCurrent(
+          prefs,
+          completer,
+          expectedAccessToken,
+          currentRefreshToken,
+        );
       }
 
       final url = Uri.parse('${AppConstants.baseUrl}/auth/refresh');
@@ -66,185 +72,322 @@ class ApiService {
         final newAccessToken = data?['accessToken']?.toString();
         final newRefreshToken = data?['refreshToken']?.toString();
 
-        if (newAccessToken != null && newAccessToken.isNotEmpty) {
+        if (newAccessToken != null &&
+            newAccessToken.isNotEmpty &&
+            newRefreshToken != null &&
+            newRefreshToken.isNotEmpty) {
           debugPrint('✅ [ApiService] Token refresh successful.');
 
-          // Update SharedPreferences standalone keys
-          await prefs.setString('accessToken', newAccessToken);
-          if (newRefreshToken != null && newRefreshToken.isNotEmpty) {
-            await prefs.setString('refreshToken', newRefreshToken);
+          // A user may log out or switch accounts while this request is in
+          // flight (possibly in another browser tab). Reload SharedPreferences
+          // so the comparison sees the current origin-scoped localStorage.
+          await prefs.reload();
+          if (!_sessionStillUsesRefreshToken(
+            prefs,
+            expectedAccessToken,
+            currentRefreshToken,
+          )) {
+            return _finishRefresh(completer, null);
           }
 
-          // Update stored userData JSON
+          // Start the preference writes together, without yielding between
+          // checking the session and scheduling writes on this app isolate.
+          final writes = <Future<bool>>[
+            prefs.setString('accessToken', newAccessToken),
+            prefs.setString('refreshToken', newRefreshToken),
+          ];
           final rawUser = prefs.getString('userData');
           if (rawUser != null) {
             final decoded = _tryDecodeJson(rawUser);
             if (decoded != null) {
               decoded['accessToken'] = newAccessToken;
-              if (newRefreshToken != null && newRefreshToken.isNotEmpty) {
-                decoded['refreshToken'] = newRefreshToken;
-              }
-              await prefs.setString('userData', jsonEncode(decoded));
+              decoded['refreshToken'] = newRefreshToken;
+              writes.add(prefs.setString('userData', jsonEncode(decoded)));
             }
           }
+          await Future.wait(writes);
 
-          _refreshCompleter!.complete(newAccessToken);
-          _refreshCompleter = null;
-          return newAccessToken;
+          onTokensRefreshed?.call(
+            currentRefreshToken,
+            newAccessToken,
+            newRefreshToken,
+          );
+
+          return _finishRefresh(completer, newAccessToken);
         }
       }
 
-      debugPrint('❌ [ApiService] Token refresh rejected by server (${response.statusCode}): ${response.body}');
-      _refreshCompleter!.complete(null);
-      _refreshCompleter = null;
+      debugPrint(
+        '❌ [ApiService] Token refresh rejected by server (${response.statusCode}): ${response.body}',
+      );
+      // A server outage or a missing refresh endpoint is not proof that this
+      // refresh token was revoked. Retain the local session unless the server
+      // explicitly rejects it; this avoids turning transient failures into Guest.
+      if (response.statusCode != 401 && response.statusCode != 403) {
+        return _finishRefresh(completer, null);
+      }
 
-      // Clear ONLY auth-related keys — never wipe the entire SharedPreferences.
-      // A full prefs.clear() would destroy unrelated app state and, critically,
-      // on restart would allow a cached Supabase OAuth session (e.g. an admin who
-      // previously signed in with Google on the same device) to silently overwrite
-      // the now-missing customer session — the root cause of the role-switching bug.
-      await prefs.remove('accessToken');
-      await prefs.remove('refreshToken');
-      await prefs.remove('userData');
-      await prefs.setBool('isLoggedIn', false);
-      onSessionExpired?.call();
-      return null;
+      // A rejection for an older in-flight session must never clear a newer
+      // account's credentials or invoke the global logout handler. Reload to
+      // observe changes made by another tab before deciding whether to expire.
+      await prefs.reload();
+      if (!_sessionStillUsesRefreshToken(
+        prefs,
+        expectedAccessToken,
+        currentRefreshToken,
+      )) {
+        return _finishRefresh(completer, null);
+      }
+
+      return _expireSessionIfCurrent(
+        prefs,
+        completer,
+        expectedAccessToken,
+        currentRefreshToken,
+      );
     } catch (e) {
       debugPrint('❌ [ApiService] Token refresh exception: $e');
-      if (!(_refreshCompleter?.isCompleted ?? true)) {
-        _refreshCompleter!.complete(null);
-      }
-      _refreshCompleter = null;
-      return null;
+      return _finishRefresh(completer, null);
     }
   }
 
-  // Helper to check if a response indicates a session error (401/403 or Session expired)
+  static bool _sessionStillUsesAccessToken(
+    SharedPreferences prefs,
+    String expectedAccessToken,
+  ) {
+    if (expectedAccessToken.isEmpty || prefs.getBool('isLoggedIn') != true) {
+      return false;
+    }
+    final standalone = prefs.getString('accessToken')?.trim();
+    if (standalone != null &&
+        standalone.isNotEmpty &&
+        standalone != expectedAccessToken) {
+      return false;
+    }
+    final rawUser = prefs.getString('userData');
+    final decoded = rawUser == null ? null : _tryDecodeJson(rawUser);
+    final embedded = decoded?['accessToken']?.toString().trim();
+    if (embedded != null &&
+        embedded.isNotEmpty &&
+        embedded != expectedAccessToken) {
+      return false;
+    }
+    return standalone == expectedAccessToken || embedded == expectedAccessToken;
+  }
+
+  static String? _readStoredRefreshToken(SharedPreferences prefs) {
+    final standalone = prefs.getString('refreshToken')?.trim();
+    if (standalone != null && standalone.isNotEmpty) return standalone;
+
+    final rawUser = prefs.getString('userData');
+    final decoded = rawUser == null ? null : _tryDecodeJson(rawUser);
+    final embedded = decoded?['refreshToken']?.toString().trim();
+    return embedded == null || embedded.isEmpty ? null : embedded;
+  }
+
+  static bool _sessionStillUsesRefreshToken(
+    SharedPreferences prefs,
+    String expectedAccessToken,
+    String expectedRefreshToken,
+  ) {
+    if (!_sessionStillUsesAccessToken(prefs, expectedAccessToken)) return false;
+
+    final standalone = prefs.getString('refreshToken')?.trim();
+    if (standalone != null &&
+        standalone.isNotEmpty &&
+        standalone != expectedRefreshToken) {
+      return false;
+    }
+
+    final rawUser = prefs.getString('userData');
+    final decoded = rawUser == null ? null : _tryDecodeJson(rawUser);
+    final embedded = decoded?['refreshToken']?.toString().trim();
+    if (embedded != null &&
+        embedded.isNotEmpty &&
+        embedded != expectedRefreshToken) {
+      return false;
+    }
+
+    // At least one of the two existing storage locations must still identify
+    // the session that initiated refresh.
+    return standalone == expectedRefreshToken ||
+        embedded == expectedRefreshToken;
+  }
+
+  static Future<String?> _expireSessionIfCurrent(
+    SharedPreferences prefs,
+    Completer<String?> completer,
+    String expectedAccessToken,
+    String? expectedRefreshToken,
+  ) async {
+    await prefs.reload();
+    if (!_sessionStillUsesAccessToken(prefs, expectedAccessToken) ||
+        (expectedRefreshToken != null &&
+            !_sessionStillUsesRefreshToken(
+              prefs,
+              expectedAccessToken,
+              expectedRefreshToken,
+            ))) {
+      return _finishRefresh(completer, null);
+    }
+
+    // The AuthProvider can detect an account switch that has reached memory
+    // but has not finished persisting yet. Let it confirm ownership before
+    // deleting any stored credentials.
+    final canExpire = onSessionExpired?.call(expectedAccessToken);
+    if (onSessionExpired != null && canExpire != true) {
+      return _finishRefresh(completer, null);
+    }
+
+    // Schedule the related removals together so an account change cannot be
+    // interleaved between clearing individual auth keys on this app isolate.
+    final removals = <Future<bool>>[
+      prefs.remove('accessToken'),
+      prefs.remove('refreshToken'),
+      prefs.remove('userData'),
+      prefs.setBool('isLoggedIn', false),
+    ];
+    await Future.wait(removals);
+    return _finishRefresh(completer, null);
+  }
+
+  static String? _finishRefresh(Completer<String?> completer, String? result) {
+    if (!completer.isCompleted) completer.complete(result);
+    if (identical(_refreshCompleter, completer)) {
+      _refreshCompleter = null;
+      _refreshingAccessToken = null;
+    }
+    return result;
+  }
+
+  // Only 401 responses trigger refresh. A response body must not turn a 403
+  // authorization denial into an authentication failure.
   static bool _isAuthError(http.Response res) {
-    if (res.statusCode == 401) return true;
-    final data = _tryDecodeJson(res.body);
-    final message = data?['message']?.toString();
-    return message == 'Session expired' || message == 'Session expired.' || message == 'Invalid token';
+    return res.statusCode == 401;
+  }
+
+  static Future<bool> _isActiveAccessToken(String token) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
+    return _sessionStillUsesAccessToken(prefs, token);
+  }
+
+  static Future<http.Response> _sendWithSessionRefresh(
+    String endpoint,
+    String token,
+    Future<http.Response> Function(String token) send,
+  ) async {
+    final originalResponse = await send(token.trim());
+    if (!_isAuthError(originalResponse) || endpoint.contains('/auth/refresh')) {
+      return originalResponse;
+    }
+
+    final refreshedToken = await refreshAccessToken(
+      failedAccessToken: token.trim(),
+    );
+    if (refreshedToken == null ||
+        refreshedToken.isEmpty ||
+        !await _isActiveAccessToken(refreshedToken)) {
+      return originalResponse;
+    }
+
+    // Retry exactly once and only with the refreshed token from the same
+    // still-active session that sent the original request.
+    return send(refreshedToken.trim());
   }
 
   // ── GET (authenticated with auto-refresh retry) ─────────────────────────────
   static Future<http.Response> getRequest(String endpoint, String token) async {
     final url = Uri.parse('${AppConstants.baseUrl}$endpoint');
-    var res = await http.get(
-      url,
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ${token.trim()}',
-      },
-    );
-
-    if (_isAuthError(res) && !endpoint.contains('/auth/refresh')) {
-      final newToken = await refreshAccessToken();
-      if (newToken != null && newToken.isNotEmpty) {
-        res = await http.get(
-          url,
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer ${newToken.trim()}',
-          },
-        );
-      }
-    }
-    return res;
+    return _sendWithSessionRefresh(endpoint, token, (requestToken) {
+      return http.get(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $requestToken',
+        },
+      );
+    });
   }
 
   // ── POST (authenticated with auto-refresh retry) ────────────────────────────
   static Future<http.Response> postAuthRequest(
-    String endpoint, Map<String, dynamic> body, String token,
+    String endpoint,
+    Map<String, dynamic> body,
+    String token,
   ) async {
     final url = Uri.parse('${AppConstants.baseUrl}$endpoint');
-    var res = await http.post(
-      url,
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ${token.trim()}',
-      },
-      body: jsonEncode(body),
-    );
-
-    if (_isAuthError(res) && !endpoint.contains('/auth/refresh')) {
-      final newToken = await refreshAccessToken();
-      if (newToken != null && newToken.isNotEmpty) {
-        res = await http.post(
-          url,
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer ${newToken.trim()}',
-          },
-          body: jsonEncode(body),
-        );
-      }
-    }
-    return res;
+    return _sendWithSessionRefresh(endpoint, token, (requestToken) {
+      return http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $requestToken',
+        },
+        body: jsonEncode(body),
+      );
+    });
   }
 
   // ── PUT (authenticated with auto-refresh retry) ─────────────────────────────
   static Future<http.Response> putRequest(
-    String endpoint, Map<String, dynamic> body, String token,
+    String endpoint,
+    Map<String, dynamic> body,
+    String token,
   ) async {
     final url = Uri.parse('${AppConstants.baseUrl}$endpoint');
-    var res = await http.put(
-      url,
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ${token.trim()}',
-      },
-      body: jsonEncode(body),
-    );
-
-    if (_isAuthError(res) && !endpoint.contains('/auth/refresh')) {
-      final newToken = await refreshAccessToken();
-      if (newToken != null && newToken.isNotEmpty) {
-        res = await http.put(
-          url,
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer ${newToken.trim()}',
-          },
-          body: jsonEncode(body),
-        );
-      }
-    }
-    return res;
+    return _sendWithSessionRefresh(endpoint, token, (requestToken) {
+      return http.put(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $requestToken',
+        },
+        body: jsonEncode(body),
+      );
+    });
   }
 
   // ── PATCH (authenticated with auto-refresh retry) ───────────────────────────
   static Future<http.Response> patchAuthRequest(
-    String endpoint, Map<String, dynamic> body, String token,
+    String endpoint,
+    Map<String, dynamic> body,
+    String token,
   ) async {
     final url = Uri.parse('${AppConstants.baseUrl}$endpoint');
-    var res = await http.patch(
-      url,
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ${token.trim()}',
-      },
-      body: jsonEncode(body),
-    );
+    return _sendWithSessionRefresh(endpoint, token, (requestToken) {
+      return http.patch(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $requestToken',
+        },
+        body: jsonEncode(body),
+      );
+    });
+  }
 
-    if (_isAuthError(res) && !endpoint.contains('/auth/refresh')) {
-      final newToken = await refreshAccessToken();
-      if (newToken != null && newToken.isNotEmpty) {
-        res = await http.patch(
-          url,
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer ${newToken.trim()}',
-          },
-          body: jsonEncode(body),
-        );
-      }
-    }
-    return res;
+  static Future<http.Response> deleteAuthRequest(
+    String endpoint,
+    String token,
+  ) async {
+    final url = Uri.parse('${AppConstants.baseUrl}$endpoint');
+    return _sendWithSessionRefresh(endpoint, token, (requestToken) {
+      return http.delete(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $requestToken',
+        },
+      );
+    });
   }
 
   // ── POST (public) ───────────────────────────────────────────────────────────
-  static Future<http.Response> postRequest(String endpoint, Map<String, dynamic> body) async {
+  static Future<http.Response> postRequest(
+    String endpoint,
+    Map<String, dynamic> body,
+  ) async {
     final url = Uri.parse('${AppConstants.baseUrl}$endpoint');
     return await http.post(
       url,
@@ -262,9 +405,17 @@ class ApiService {
         ..headers['Accept'] = 'application/json';
 
       if (imageFile is List<int>) {
-        request.files.add(http.MultipartFile.fromBytes('image', imageFile, filename: 'upload.jpg'));
+        request.files.add(
+          http.MultipartFile.fromBytes(
+            'image',
+            imageFile,
+            filename: 'upload.jpg',
+          ),
+        );
       } else {
-        request.files.add(await http.MultipartFile.fromPath('image', imageFile.path));
+        request.files.add(
+          await http.MultipartFile.fromPath('image', imageFile.path),
+        );
       }
 
       final streamed = await request.send();
@@ -272,9 +423,9 @@ class ApiService {
       final decoded = _tryDecodeJson(body);
 
       if (streamed.statusCode >= 200 && streamed.statusCode < 300) {
-        return decoded?['data']?['profilePicture']?.toString() ?? 
-               decoded?['data']?['url']?.toString() ??
-               decoded?['user']?['profilePicture']?.toString();
+        return decoded?['data']?['profilePicture']?.toString() ??
+            decoded?['data']?['url']?.toString() ??
+            decoded?['user']?['profilePicture']?.toString();
       }
     } catch (e) {
       debugPrint('⚠️ ApiService uploadImage error: $e');
@@ -306,18 +457,13 @@ class ApiService {
   static Map<String, dynamic> processResponse(http.Response res) {
     final data = _tryDecodeJson(res.body);
     final rawBody = res.body.trim().toLowerCase();
-    
-    final isUnauthorized = res.statusCode == 401 || res.statusCode == 403;
-    final isForbiddenText = rawBody == 'forbidden' || rawBody.contains('forbidden');
+
+    final isUnauthorized = res.statusCode == 401;
+    final isForbiddenText =
+        rawBody == 'forbidden' || rawBody.contains('forbidden');
     final isSessionExpired = data?['message'] == 'Session expired';
 
     if (isUnauthorized || isForbiddenText || isSessionExpired) {
-      final authHeader = res.request?.headers['Authorization'];
-      
-      if (authHeader != null && authHeader.length > 15) { 
-        onSessionExpired?.call();
-      }
-
       return {
         'success': false,
         'isForbidden': true,

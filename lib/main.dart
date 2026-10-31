@@ -26,7 +26,6 @@ import 'package:dealio/data/providers/settings_provider.dart';
 import 'package:dealio/data/services/notification_service.dart';
 import 'package:dealio/core/theme/app_theme.dart';
 import 'package:dealio/features/admin/screens/admin_dashboard_screen.dart';
-import 'package:dealio/features/admin/screens/admin_orders_screen.dart';
 import 'package:dealio/features/admin/screens/vendor_dashboard_screen.dart';
 import 'package:dealio/features/admin/screens/moderation_dashboard_screen.dart';
 import 'package:dealio/features/auth/screens/forgot_password.dart';
@@ -95,6 +94,29 @@ void main() async {
   // 5. Prepare AuthProvider and load saved session BEFORE runApp
   final authProvider = AuthProvider();
 
+  // Install auth callbacks before loadUserData starts its background profile
+  // request; that request can receive a 401 before runApp/Navigator exists.
+  ApiService.onTokensRefreshed =
+      (previousRefreshToken, accessToken, refreshToken) {
+        authProvider.acceptRefreshedTokens(
+          previousRefreshToken: previousRefreshToken,
+          accessToken: accessToken,
+          refreshToken: refreshToken,
+        );
+      };
+  ApiService.onSessionExpired = (expiredAccessToken) {
+    final expired = authProvider.expireSessionIfTokenMatches(
+      expiredAccessToken,
+    );
+    if (expired) {
+      navigatorKey.currentState?.pushNamedAndRemoveUntil(
+        '/login',
+        (r) => false,
+      );
+    }
+    return expired;
+  };
+
   // Restore session immediately if Supabase has one
   try {
     await authProvider.loadUserData();
@@ -109,9 +131,11 @@ void main() async {
       if (supabaseSession != null) {
         final provider =
             supabaseSession.user.appMetadata['provider']?.toString() ?? '';
-        final isOAuth = provider == 'google' ||
-            supabaseSession.user.identities
-                    ?.any((i) => i.provider == 'google') ==
+        final isOAuth =
+            provider == 'google' ||
+            supabaseSession.user.identities?.any(
+                  (i) => i.provider == 'google',
+                ) ==
                 true;
         if (isOAuth) {
           await authProvider.handleGoogleSuccess(supabaseSession);
@@ -145,7 +169,8 @@ void main() async {
       try {
         // Only handle the initial sign-in event (OAuth callback).
         // TOKEN_REFRESHED, USER_UPDATED, etc. must NOT overwrite the session.
-        final isSignIn = data.event == AuthChangeEvent.signedIn ||
+        final isSignIn =
+            data.event == AuthChangeEvent.signedIn ||
             data.event == AuthChangeEvent.initialSession;
 
         if (!isSignIn) return;
@@ -172,11 +197,9 @@ void main() async {
         // Supabase auth; calling handleGoogleSuccess for them would overwrite
         // their custom backend token with the Supabase token.
         final provider = session.user.appMetadata['provider']?.toString() ?? '';
-        final isOAuth = provider == 'google' ||
-            session.user.identities?.any(
-                  (i) => i.provider == 'google',
-                ) ==
-                true;
+        final isOAuth =
+            provider == 'google' ||
+            session.user.identities?.any((i) => i.provider == 'google') == true;
 
         if (!isOAuth && authProvider.isLoggedIn) {
           debugPrint(
@@ -211,19 +234,6 @@ void main() async {
       );
     },
   );
-
-  // 5. Wire ApiService session-expired callback
-  ApiService.onSessionExpired = () {
-    if (authProvider.isLoggedIn) {
-      if (navigatorKey.currentContext != null) {
-        authProvider.logout(navigatorKey.currentContext!);
-        navigatorKey.currentState?.pushNamedAndRemoveUntil(
-          '/login',
-          (r) => false,
-        );
-      }
-    }
-  };
 
   // 6. Load wishlist
   final wishlistProvider = WishlistProvider();
@@ -361,12 +371,15 @@ class MyApp extends StatelessWidget {
                 }
 
                 // ── /product/:id — fetch by id when not in memory ───────────
-                final productMatch = RegExp(r'^/product/(.+)$').firstMatch(path);
+                final productMatch = RegExp(
+                  r'^/product/(.+)$',
+                ).firstMatch(path);
                 if (productMatch != null) {
                   final productId = productMatch.group(1)!;
                   return MaterialPageRoute(
                     settings: settings,
-                    builder: (context) => _ProductDeepLinkPage(productId: productId),
+                    builder: (context) =>
+                        _ProductDeepLinkPage(productId: productId),
                   );
                 }
 
@@ -422,11 +435,11 @@ class MyApp extends StatelessWidget {
                   const LocationOnboardingScreen(),
               // ── Tab deep-link paths (HomeBottom reads Uri.base.path) ────────
               // User tabs — auth is already enforced by the home Consumer above
-              '/orders':    (context) => const HomeScreen(),
-              '/cart':      (context) => const HomeScreen(),
+              '/orders': (context) => const HomeScreen(),
+              '/cart': (context) => const HomeScreen(),
               '/favorites': (context) => const HomeScreen(),
-              '/profile':   (context) => const HomeScreen(),
-              '/search':    (context) => const HomeScreen(),
+              '/profile': (context) => const HomeScreen(),
+              '/search': (context) => const HomeScreen(),
               // Admin tabs — role-guarded so typing the URL doesn't expose
               // the admin tab to a non-admin user
               '/admin/products': (context) => GuardedRoute(
@@ -457,7 +470,7 @@ class MyApp extends StatelessWidget {
               '/admin/orders': (context) => GuardedRoute(
                 allowedRoles: AppRoles.orderManagers,
                 redirectTo: '/home',
-                child: const AdminOrdersScreen(),
+                child: const HomeScreen(),
               ),
               // ── Vendor ──────────────────────────────────────────────────────
               '/vendor': (context) => GuardedRoute(
@@ -524,7 +537,9 @@ class _ProductDeepLinkPageState extends State<_ProductDeepLinkPage> {
 
     if (product != null) {
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => ProductDetailsPage(product: product!)),
+        MaterialPageRoute(
+          builder: (_) => ProductDetailsPage(product: product!),
+        ),
       );
     } else {
       // Product not found — fall back to home
@@ -565,7 +580,17 @@ class _OrderDeepLinkPageState extends State<_OrderDeepLinkPage> {
       // Not in cache or cache has a summary-only row — fetch this specific
       // order via GET /api/orders/:id which returns items + address in one
       // request. Cheaper than fetching the entire orders list.
-      order = await provider.fetchOrderById(widget.orderId);
+      try {
+        order = await provider.fetchOrderById(widget.orderId);
+      } on OrderFetchException catch (e) {
+        debugPrint(
+          '⚠️ [DeepLink] fetchOrderById failed: ${e.failure.name}: ${e.message}',
+        );
+        order = null;
+      } catch (e) {
+        debugPrint('⚠️ [DeepLink] fetchOrderById unexpected error: $e');
+        order = null;
+      }
       if (!mounted) return;
     }
 

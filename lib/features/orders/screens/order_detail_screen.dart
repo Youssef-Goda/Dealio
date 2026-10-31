@@ -32,6 +32,21 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   // Set to true after the first fetch attempt completes (success or failure).
   // Used to distinguish "not yet fetched" from "fetched but empty".
   bool _fetchAttempted = false;
+  // Structured failure from the last fetchOrderById attempt.
+  // Null when the fetch succeeded or has not yet been attempted.
+  OrderFetchException? _fetchError;
+
+  void _handleBack() {
+    final navigator = Navigator.of(context);
+    if (navigator.canPop()) {
+      navigator.pop();
+    } else {
+      // A cold /order/:id deep link has no previous Flutter route after its
+      // loader is replaced. Keep Back in-app instead of popping to a blank
+      // browser surface.
+      navigator.pushReplacementNamed('/home');
+    }
+  }
 
   @override
   void didChangeDependencies() {
@@ -63,11 +78,24 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     if (_fetching) return;
     if (!mounted) return;
 
-    setState(() => _fetching = true);
+    setState(() {
+      _fetching = true;
+      _fetchError = null; // clear previous error on retry
+    });
     try {
-      // fetchOrderById calls GET /api/orders/:id — returns items + address.
-      // It is independent of fetchOrders (the list endpoint).
+      // fetchOrderById throws OrderFetchException on every non-success path so
+      // we can surface a diagnostic message instead of silently showing nothing.
       await provider.fetchOrderById(orderArg.id);
+    } on OrderFetchException catch (e) {
+      if (mounted) setState(() => _fetchError = e);
+    } catch (e) {
+      // Unexpected exception — wrap it so the UI always has a message.
+      if (mounted) {
+        setState(() => _fetchError = OrderFetchException(
+          OrderFetchFailure.network,
+          'Unexpected error: ${e.toString().split('\n').first}',
+        ));
+      }
     } finally {
       if (mounted) {
         setState(() {
@@ -354,11 +382,19 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     // Show a loading overlay while we are fetching fuller order data.
     final isLoadingDetails = _fetching && order.items.isEmpty;
 
-    // Fetch completed but items are still empty — show a retry state rather
-    // than silently rendering an empty order.
-    // Uses _fetchAttempted so orders with a legitimate $0 total do not
-    // incorrectly trigger this state before the first fetch has run.
+    // Fetch completed but items are still empty — show the error state.
+    // Uses _fetchAttempted to avoid triggering before any fetch has run.
     final isFetchFailed = _fetchAttempted && !_fetching && order.items.isEmpty;
+
+    // Derive the icon and message to show in the error card.
+    final errorIcon = switch (_fetchError?.failure) {
+      OrderFetchFailure.unauthenticated => LucideIcons.logIn,
+      OrderFetchFailure.unauthorized    => LucideIcons.shieldOff,
+      OrderFetchFailure.notFound        => LucideIcons.packageOpen,
+      OrderFetchFailure.network         => LucideIcons.wifiOff,
+      _                                 => LucideIcons.circleAlert,
+    };
+    final errorMessage = _fetchError?.message ?? 'Could not load order details.';
 
     return Scaffold(
       backgroundColor:
@@ -374,7 +410,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                 : AppColors.textPrimaryDark,
             size: R.font(context, 20),
           ),
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: _handleBack,
         ),
         title: Text(
           'Order #${order.shortId}',
@@ -398,43 +434,50 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
           ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
           : isFetchFailed
               ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        LucideIcons.packageOpen,
-                        size: R.r(context, 56),
-                        color: AppColors.textMuted,
-                      ),
-                      SizedBox(height: R.h(context, 16)),
-                      Text(
-                        'Could not load order details.',
-                        style: TextStyle(
-                          fontSize: R.font(context, 15),
-                          color: isDark
-                              ? AppColors.darkTextSecondary
-                              : AppColors.textMuted,
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(horizontal: R.r(context, 32)),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          errorIcon,
+                          size: R.r(context, 56),
+                          color: AppColors.textMuted,
                         ),
-                      ),
-                      SizedBox(height: R.h(context, 16)),
-                      ElevatedButton.icon(
-                        onPressed: () {
-                          // Reset _fetchAttempted so the error state clears
-                          // immediately when the retry fetch starts.
-                          setState(() => _fetchAttempted = false);
-                          _tryFetchIfNeeded();
-                        },
-                        icon: Icon(LucideIcons.refreshCw, size: R.font(context, 16)),
-                        label: const Text('Try Again'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primary,
-                          foregroundColor: AppColors.secondary,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(R.r(context, 10)),
+                        SizedBox(height: R.h(context, 16)),
+                        Text(
+                          errorMessage,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: R.font(context, 15),
+                            color: isDark
+                                ? AppColors.darkTextSecondary
+                                : AppColors.textMuted,
                           ),
                         ),
-                      ),
-                    ],
+                        SizedBox(height: R.h(context, 16)),
+                        ElevatedButton.icon(
+                          onPressed: () {
+                            // Reset so the error state clears immediately
+                            // when the retry fetch starts.
+                            setState(() {
+                              _fetchAttempted = false;
+                              _fetchError = null;
+                            });
+                            _tryFetchIfNeeded();
+                          },
+                          icon: Icon(LucideIcons.refreshCw, size: R.font(context, 16)),
+                          label: const Text('Try Again'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            foregroundColor: AppColors.secondary,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(R.r(context, 10)),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 )
               : SingleChildScrollView(

@@ -22,15 +22,15 @@ class OrderItem {
   });
 
   factory OrderItem.fromJson(Map<String, dynamic> j) => OrderItem(
-    id: j['id'] as String,
-    orderId: j['order_id'] as String,
-    productId: j['product_id'] as String,
-    productName: j['product_name'] as String,
-    productCode: j['product_code'] as String?,
-    imageUrl: j['image_url'] as String?,
-    unitPrice: _toDouble(j['unit_price']),
-    quantity: j['quantity'] as int,
-    subtotal: _toDouble(j['subtotal']),
+    id:          j['id']?.toString()           ?? '',
+    orderId:     j['order_id']?.toString()     ?? '',
+    productId:   j['product_id']?.toString()   ?? '',
+    productName: j['product_name']?.toString() ?? '(unknown product)',
+    productCode: j['product_code']?.toString(),
+    imageUrl:    j['image_url']?.toString(),
+    unitPrice:   _toDouble(j['unit_price']),
+    quantity:    (j['quantity'] as num?)?.toInt() ?? 0,
+    subtotal:    _toDouble(j['subtotal']),
   );
 
   Map<String, dynamic> toInsertJson(String orderId) => {

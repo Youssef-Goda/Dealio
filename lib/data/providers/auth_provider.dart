@@ -69,13 +69,8 @@ class SignUpFormData {
           confirmPassword == other.confirmPassword;
 
   @override
-  int get hashCode => Object.hash(
-        firstName,
-        lastName,
-        email,
-        password,
-        confirmPassword,
-      );
+  int get hashCode =>
+      Object.hash(firstName, lastName, email, password, confirmPassword);
 }
 
 class AuthProvider with ChangeNotifier {
@@ -111,7 +106,9 @@ class AuthProvider with ChangeNotifier {
       password: password,
       confirmPassword: confirmPassword,
     );
-    if (_signUpFormData != null && current == updated && (email == null || email == _tempEmail)) {
+    if (_signUpFormData != null &&
+        current == updated &&
+        (email == null || email == _tempEmail)) {
       return;
     }
     _signUpFormData = updated;
@@ -129,29 +126,66 @@ class AuthProvider with ChangeNotifier {
   }
 
   // ── Getters ────────────────────────────────────────────────────────────────
-  String? get token        => _userData?['accessToken']?.toString();
+  String? get token => _userData?['accessToken']?.toString();
   String? get refreshToken => _userData?['refreshToken']?.toString();
-  bool get isLoggedIn      => _isLoggedIn;
-  bool get isInitialized   => _isInitialized;
+  bool get isLoggedIn => _isLoggedIn;
+  bool get isInitialized => _isInitialized;
   Map<String, dynamic> get user => _userData ?? {};
-  bool get isLoading     => _isLoading;
+  bool get isLoading => _isLoading;
 
   /// The authenticated user's id — used by PermissionGuard for ownership checks.
   String get userId =>
-      (_userData?['userId']  ??
-       _userData?['id']      ??
-       _userData?['user_id'] ?? '').toString();
+      (_userData?['userId'] ?? _userData?['id'] ?? _userData?['user_id'] ?? '')
+          .toString();
+
+  /// Keep the in-memory session aligned with ApiService's rotated persisted
+  /// tokens, but only when the refresh belongs to the currently active session.
+  void acceptRefreshedTokens({
+    required String previousRefreshToken,
+    required String accessToken,
+    required String refreshToken,
+  }) {
+    if (!_isLoggedIn || this.refreshToken != previousRefreshToken) return;
+    _userData = {
+      ...?_userData,
+      'accessToken': accessToken,
+      'refreshToken': refreshToken,
+    };
+    notifyListeners();
+  }
+
+  /// Expires only the session whose access token was rejected. This is
+  /// intentionally context-free so startup/background 401 handling updates
+  /// in-memory auth even before the Navigator has mounted.
+  bool expireSessionIfTokenMatches(String expiredAccessToken) {
+    if (!_isLoggedIn || token != expiredAccessToken) return false;
+
+    _userData = null;
+    _isLoggedIn = false;
+    _isInitialized = true;
+    notifyListeners();
+    unawaited(_signOutSupabaseAfterSessionExpiry());
+    return true;
+  }
+
+  Future<void> _signOutSupabaseAfterSessionExpiry() async {
+    try {
+      await Supabase.instance.client.auth.signOut();
+    } catch (e) {
+      debugPrint('⚠️ [Auth] Supabase sign-out after session expiry failed: $e');
+    }
+  }
 
   /// Role is always lower-case and non-null. Falls back to 'customer'.
   String get userRole =>
       _userData?['role']?.toString().toLowerCase().trim() ?? 'customer';
 
   // ── Role helpers (match AppRoles 5-role system) ───────────────────────────
-  bool get isOwner     => userRole == 'owner';
-  bool get isAdmin     => userRole == 'owner' || userRole == 'admin';
+  bool get isOwner => userRole == 'owner';
+  bool get isAdmin => userRole == 'owner' || userRole == 'admin';
   bool get isModerator => isAdmin || userRole == 'moderator';
-  bool get isVendor    => userRole == 'vendor';
-  bool get isCustomer  => userRole == 'customer' || userRole == 'user';
+  bool get isVendor => userRole == 'vendor';
+  bool get isCustomer => userRole == 'customer' || userRole == 'user';
 
   /// True for admin OR owner — backwards-compatible alias used by existing widgets.
   bool get isPrivileged => isAdmin;
@@ -272,8 +306,9 @@ class AuthProvider with ChangeNotifier {
           supaUser.userMetadata?['full_name']?.toString().trim() ?? '';
       final List<String> parts = fullName.split(' ');
       final String metaFirst = parts.isNotEmpty ? parts[0] : '';
-      final String metaLast =
-          parts.length > 1 ? parts.sublist(1).join(' ') : '';
+      final String metaLast = parts.length > 1
+          ? parts.sublist(1).join(' ')
+          : '';
 
       // Upsert: creates a new row for first-time Google users.
       // ignoreDuplicates: true means existing rows (including admin role) are
@@ -320,9 +355,7 @@ class AuthProvider with ChangeNotifier {
         profileProvider.loadFromUser(_userData ?? userData);
       }
 
-      debugPrint(
-        '✅ [Auth] Google user synced — role: ${userData['role']}',
-      );
+      debugPrint('✅ [Auth] Google user synced — role: ${userData['role']}');
 
       // Background tasks
       final authToken = _userData?['accessToken']?.toString() ?? '';
@@ -358,15 +391,13 @@ class AuthProvider with ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
 
     // Flatten nested 'user' key if present
-    final Map<String, dynamic> userInfo =
-        (data['user'] is Map<String, dynamic>)
-            ? data['user'] as Map<String, dynamic>
-            : Map<String, dynamic>.from(data);
+    final Map<String, dynamic> userInfo = (data['user'] is Map<String, dynamic>)
+        ? data['user'] as Map<String, dynamic>
+        : Map<String, dynamic>.from(data);
 
     // Token can live at the top level or inside 'user'
     final String? accessToken =
-        data['accessToken']?.toString() ??
-        userInfo['accessToken']?.toString();
+        data['accessToken']?.toString() ?? userInfo['accessToken']?.toString();
     final String? refreshTokenVal =
         data['refreshToken']?.toString() ??
         userInfo['refreshToken']?.toString();
@@ -403,58 +434,60 @@ class AuthProvider with ChangeNotifier {
 
   /// Merges [updatedFields] into the existing session.
   /// The access token is NEVER overwritten unless explicitly included.
-//  Future<void> updateUserData(Map<String, dynamic> updatedFields) async {
-//     if (_userData == null) return;
-    
-//     // الاحتفاظ بالتوكن القديم عشان ميتمسحش وقت التحديث
-//     final currentToken = _userData!['accessToken'];
-    
-//     _userData = {
-//       ..._userData!,
-//       ...updatedFields,
-//       'accessToken': currentToken, // ضمان وجود التوكن
-//     };
+  //  Future<void> updateUserData(Map<String, dynamic> updatedFields) async {
+  //     if (_userData == null) return;
 
-//     final prefs = await SharedPreferences.getInstance();
-//     await prefs.setString('userData', jsonEncode(_userData));
-//     notifyListeners();
-//   }
-//   /// Refreshes the Supabase session by re-fetching the DB row.
-//   /// Called when the Supabase token rotates.
-//   Future<void> refreshSession() async {
-//     final session = Supabase.instance.client.auth.currentSession;
-//     if (session == null) return;
+  //     // الاحتفاظ بالتوكن القديم عشان ميتمسحش وقت التحديث
+  //     final currentToken = _userData!['accessToken'];
 
-//     debugPrint('⚡ [Auth] Refreshing session from Supabase DB...');
-//     try {
-//       final row = await Supabase.instance.client
-//           .from('users')
-//           .select()
-//           .eq('id', session.user.id)
-//           .maybeSingle();
+  //     _userData = {
+  //       ..._userData!,
+  //       ...updatedFields,
+  //       'accessToken': currentToken, // ضمان وجود التوكن
+  //     };
 
-//       if (row != null) {
-//         await _saveUserSession({
-//           ...row,
-//           'accessToken': session.accessToken,
-//           'email': session.user.email ?? row['email'],
-//         });
-//       }
-//     } catch (e) {
-//       debugPrint('⚠️ [Auth] refreshSession error: $e');
-//     }
-//   }
+  //     final prefs = await SharedPreferences.getInstance();
+  //     await prefs.setString('userData', jsonEncode(_userData));
+  //     notifyListeners();
+  //   }
+  //   /// Refreshes the Supabase session by re-fetching the DB row.
+  //   /// Called when the Supabase token rotates.
+  //   Future<void> refreshSession() async {
+  //     final session = Supabase.instance.client.auth.currentSession;
+  //     if (session == null) return;
 
-Future<void> updateUserData(Map<String, dynamic> updatedFields) async {
+  //     debugPrint('⚡ [Auth] Refreshing session from Supabase DB...');
+  //     try {
+  //       final row = await Supabase.instance.client
+  //           .from('users')
+  //           .select()
+  //           .eq('id', session.user.id)
+  //           .maybeSingle();
+
+  //       if (row != null) {
+  //         await _saveUserSession({
+  //           ...row,
+  //           'accessToken': session.accessToken,
+  //           'email': session.user.email ?? row['email'],
+  //         });
+  //       }
+  //     } catch (e) {
+  //       debugPrint('⚠️ [Auth] refreshSession error: $e');
+  //     }
+  //   }
+
+  Future<void> updateUserData(Map<String, dynamic> updatedFields) async {
     if (_userData == null) return;
-    
-    debugPrint('🔄 [Auth] Updating user data with fields: ${updatedFields.keys.toList()}');
+
+    debugPrint(
+      '🔄 [Auth] Updating user data with fields: ${updatedFields.keys.toList()}',
+    );
 
     // 1. الاحتفاظ بالقيم الحيوية (التوكن والرتبة) من الداتا الحالية
     final currentToken = token;
     final currentRefreshToken = refreshToken;
     final currentRole = userRole;
-    
+
     // 2. الدمج الذكي: بنحافظ على كل القديم ونغير بس اللي جه جديد
     _userData = {
       ..._userData!,
@@ -462,7 +495,7 @@ Future<void> updateUserData(Map<String, dynamic> updatedFields) async {
       'accessToken': currentToken, // حماية التوكن
       if (currentRefreshToken != null && currentRefreshToken.isNotEmpty)
         'refreshToken': currentRefreshToken,
-      'role': currentRole,        // حماية الرتبة
+      'role': currentRole, // حماية الرتبة
     };
 
     // 3. مسح أي nesting لو جه غلط من السيرفر
@@ -471,41 +504,41 @@ Future<void> updateUserData(Map<String, dynamic> updatedFields) async {
     // 4. الحفظ في الـ SharedPreferences
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('userData', jsonEncode(_userData));
-    await prefs.setBool('isLoggedIn', true); 
-    
+    await prefs.setBool('isLoggedIn', true);
+
     _isLoggedIn = true;
     notifyListeners();
     debugPrint('✅ [Auth] Update Complete. Current Role: $userRole');
   }
 
-// // ── استبدل دالة updateUserData بالنسخة دي ────────────────────────────────
-//   Future<void> updateUserData(Map<String, dynamic> updatedFields) async {
-//     if (_userData == null) return;
-    
-//     // 1. الاحتفاظ بالقيم الحيوية (التوكن والرتبة)
-//     final currentToken = token;
-//     final currentRole = userRole;
-    
-//     // 2. دمج البيانات بشكل "فلات"
-//     _userData = {
-//       ..._userData!,
-//       ...updatedFields,
-//       'accessToken': currentToken, // ضمان عدم الضياع
-//       'role': currentRole,        // ضمان ثبات الرتبة
-//     };
+  // // ── استبدل دالة updateUserData بالنسخة دي ────────────────────────────────
+  //   Future<void> updateUserData(Map<String, dynamic> updatedFields) async {
+  //     if (_userData == null) return;
 
-//     // 3. الحفظ الذري (Atomic Persistence)
-//     final prefs = await SharedPreferences.getInstance();
-//     await prefs.setString('userData', jsonEncode(_userData));
-//     // 🔥 المسمار اللي كان ناقص: لازم نأكد إن الحالة "مسجل دخول"
-//     await prefs.setBool('isLoggedIn', true); 
-    
-//     _isLoggedIn = true;
-//     notifyListeners();
-//     debugPrint('✅ [Auth] updateUserData Saved & Persistent');
-//   }
+  //     // 1. الاحتفاظ بالقيم الحيوية (التوكن والرتبة)
+  //     final currentToken = token;
+  //     final currentRole = userRole;
 
-// ── وتأكد إن loadUserData بقت كدة (الترتيب بيفرق) ────────────────────────
+  //     // 2. دمج البيانات بشكل "فلات"
+  //     _userData = {
+  //       ..._userData!,
+  //       ...updatedFields,
+  //       'accessToken': currentToken, // ضمان عدم الضياع
+  //       'role': currentRole,        // ضمان ثبات الرتبة
+  //     };
+
+  //     // 3. الحفظ الذري (Atomic Persistence)
+  //     final prefs = await SharedPreferences.getInstance();
+  //     await prefs.setString('userData', jsonEncode(_userData));
+  //     // 🔥 المسمار اللي كان ناقص: لازم نأكد إن الحالة "مسجل دخول"
+  //     await prefs.setBool('isLoggedIn', true);
+
+  //     _isLoggedIn = true;
+  //     notifyListeners();
+  //     debugPrint('✅ [Auth] updateUserData Saved & Persistent');
+  //   }
+
+  // ── وتأكد إن loadUserData بقت كدة (الترتيب بيفرق) ────────────────────────
   // Future<void> loadUserData() async {
   //   debugPrint('🔄 [Auth] loadUserData START');
   //   final prefs = await SharedPreferences.getInstance();
@@ -542,75 +575,69 @@ Future<void> updateUserData(Map<String, dynamic> updatedFields) async {
   //   debugPrint('🏁 [Auth] loadUserData END — isLoggedIn: $_isLoggedIn');
   // }
 
-Future<void> loadUserData() async {
-  debugPrint('🔄 [Auth] loadUserData START');
+  Future<void> loadUserData() async {
+    debugPrint('🔄 [Auth] loadUserData START');
 
-  final prefs = await SharedPreferences.getInstance();
+    final prefs = await SharedPreferences.getInstance();
 
-  try {
-    final raw = prefs.getString('userData');
-    final storedAccessToken = prefs.getString('accessToken')?.trim();
-    final storedRefreshToken = prefs.getString('refreshToken')?.trim();
+    try {
+      final raw = prefs.getString('userData');
+      final storedAccessToken = prefs.getString('accessToken')?.trim();
+      final storedRefreshToken = prefs.getString('refreshToken')?.trim();
 
-    Map<String, dynamic>? decoded;
+      Map<String, dynamic>? decoded;
 
-    if (raw != null && raw.isNotEmpty) {
-      final value = jsonDecode(raw);
-      if (value is Map<String, dynamic>) {
-        decoded = Map<String, dynamic>.from(value);
+      if (raw != null && raw.isNotEmpty) {
+        final value = jsonDecode(raw);
+        if (value is Map<String, dynamic>) {
+          decoded = Map<String, dynamic>.from(value);
+        }
+      }
+
+      final accessToken =
+          (storedAccessToken != null && storedAccessToken.isNotEmpty)
+          ? storedAccessToken
+          : decoded?['accessToken']?.toString().trim();
+
+      if (decoded != null && accessToken != null && accessToken.isNotEmpty) {
+        _userData = {
+          ...decoded,
+          'accessToken': accessToken,
+          if (storedRefreshToken != null && storedRefreshToken.isNotEmpty)
+            'refreshToken': storedRefreshToken,
+        };
+
+        _isLoggedIn = true;
+
+        debugPrint(
+          '✅ [Auth] Restored session from persistent storage '
+          '(token present)',
+        );
+      } else {
+        _userData = null;
+        _isLoggedIn = false;
+        debugPrint('ℹ️ [Auth] No persisted session found');
+      }
+    } catch (e) {
+      debugPrint('❌ [Auth] Session restore error: $e');
+
+      // Do NOT clear SharedPreferences here.
+      // A parsing/network/startup issue must not silently log the user out.
+      _isLoggedIn = false;
+    }
+
+    _isInitialized = true;
+    notifyListeners();
+
+    if (_isLoggedIn) {
+      final t = token;
+      if (t != null && t.isNotEmpty) {
+        _syncProfileFromServer(t);
       }
     }
 
-    final accessToken =
-        (storedAccessToken != null && storedAccessToken.isNotEmpty)
-            ? storedAccessToken
-            : decoded?['accessToken']?.toString().trim();
-
-    if (decoded != null &&
-        accessToken != null &&
-        accessToken.isNotEmpty) {
-      _userData = {
-        ...decoded,
-        'accessToken': accessToken,
-        if (storedRefreshToken != null &&
-            storedRefreshToken.isNotEmpty)
-          'refreshToken': storedRefreshToken,
-      };
-
-      _isLoggedIn = true;
-
-      debugPrint(
-        '✅ [Auth] Restored session from persistent storage '
-        '(token present)',
-      );
-    } else {
-      _userData = null;
-      _isLoggedIn = false;
-      debugPrint('ℹ️ [Auth] No persisted session found');
-    }
-  } catch (e) {
-    debugPrint('❌ [Auth] Session restore error: $e');
-
-    // Do NOT clear SharedPreferences here.
-    // A parsing/network/startup issue must not silently log the user out.
-    _isLoggedIn = false;
+    debugPrint('🏁 [Auth] loadUserData END — isLoggedIn: $_isLoggedIn');
   }
-
-  _isInitialized = true;
-  notifyListeners();
-
-  if (_isLoggedIn) {
-    final t = token;
-    if (t != null && t.isNotEmpty) {
-      _syncProfileFromServer(t);
-    }
-  }
-
-  debugPrint(
-    '🏁 [Auth] loadUserData END — isLoggedIn: $_isLoggedIn',
-  );
-}
-
 
   // ══════════════════════════════════════════════════════════════════════════
   // BACKGROUND NETWORK TASKS (fire-and-forget)
@@ -620,11 +647,21 @@ Future<void> loadUserData() async {
   Future<void> _syncProfileFromServer(String bearerToken) async {
     try {
       final profile = await ApiService.fetchProfile(bearerToken);
-      if (profile != null) {
+      // This request is fire-and-forget and may finish after logout or after
+      // another account has signed in. Never merge a response from an old
+      // session into the currently active identity.
+      if (profile != null &&
+          _isLoggedIn &&
+          token == bearerToken &&
+          (profile['id'] == null || profile['id'].toString() == userId)) {
         await updateUserData({...profile, 'accessToken': bearerToken});
         debugPrint(
           '✅ [Auth] Profile synced — role: $userRole | '
           'phone: ${_userData?['phoneNumber']}',
+        );
+      } else if (profile != null) {
+        debugPrint(
+          'ℹ️ [Auth] Ignored profile response for an inactive session.',
         );
       }
     } catch (e) {
@@ -671,16 +708,21 @@ Future<void> loadUserData() async {
     if (t == null || t.isEmpty) return null;
 
     try {
-      final request = http.MultipartRequest(
-        'POST',
-        Uri.parse('${AppConstants.baseUrl}/users/profile/picture'),
-      )
-        ..headers['Authorization'] = 'Bearer $t'
-        ..headers['Accept'] = 'application/json';
+      final request =
+          http.MultipartRequest(
+              'POST',
+              Uri.parse('${AppConstants.baseUrl}/users/profile/picture'),
+            )
+            ..headers['Authorization'] = 'Bearer $t'
+            ..headers['Accept'] = 'application/json';
 
       if (imageFile is List<int>) {
         request.files.add(
-          http.MultipartFile.fromBytes('image', imageFile, filename: 'avatar.jpg'),
+          http.MultipartFile.fromBytes(
+            'image',
+            imageFile,
+            filename: 'avatar.jpg',
+          ),
         );
       } else if (imageFile is File) {
         request.files.add(
@@ -700,8 +742,7 @@ Future<void> loadUserData() async {
       if (streamed.statusCode >= 200 &&
           streamed.statusCode < 300 &&
           decoded?['success'] == true) {
-        final updatedUser =
-            decoded?['data']?['user'] as Map<String, dynamic>?;
+        final updatedUser = decoded?['data']?['user'] as Map<String, dynamic>?;
         if (updatedUser != null) {
           await updateUserData(updatedUser);
           return updatedUser['profilePicture']?.toString();
@@ -728,7 +769,7 @@ Future<void> loadUserData() async {
         final authToken = _userData?['accessToken']?.toString() ?? '';
         if (authToken.isNotEmpty) {
           _syncProfileFromServer(authToken); // fire-and-forget
-          _syncFcmToken(authToken);          // fire-and-forget
+          _syncFcmToken(authToken); // fire-and-forget
         }
       }
       return result;
@@ -802,9 +843,9 @@ Future<void> loadUserData() async {
   /// Verifies an OTP.
   /// - For registration: auto-logs the user in if the backend returns a token.
   /// - For password reset: just validates; does NOT log in.
-  /// 
-  /// 
-  /// 
+  ///
+  ///
+  ///
   Future<Map<String, dynamic>> verifyOtp({
     required String otp,
     required String email,
@@ -823,12 +864,12 @@ Future<void> loadUserData() async {
           if (!isForPasswordReset) {
             await _saveUserSession(data);
           }
-          
+
           final String authToken = _userData?['accessToken']?.toString() ?? '';
           if (authToken.isNotEmpty) {
             // مزامنة الـ FCM token في الخلفية بشكل آمن
-            _syncFcmToken(authToken); 
-            
+            _syncFcmToken(authToken);
+
             // لو مش ريسيت باسورد، ممكن نعمل مزامنة سريعة للبروفايل كمان للتأكيد
             if (!isForPasswordReset) {
               clearSignUpFormData();
@@ -937,8 +978,8 @@ Future<void> loadUserData() async {
       final emailToSend = (_userData?['email']?.toString().isNotEmpty == true)
           ? _userData!['email'].toString()
           : (_tempEmail.isNotEmpty
-              ? _tempEmail
-              : (_signUpFormData?.email ?? ''));
+                ? _tempEmail
+                : (_signUpFormData?.email ?? ''));
       final result = await _authRepo.resendOtp(emailToSend);
       if (result['success'] == true) {
         _isOtpPending = true;

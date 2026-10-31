@@ -6,6 +6,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 import 'package:sidebarx/sidebarx.dart';
 import 'package:dealio/core/constants/app_nav.dart';
+import 'package:dealio/core/constants/app_roles.dart';
 import 'package:dealio/core/constants/colors.dart';
 import 'package:dealio/core/utils/responsive_helper.dart';
 import 'package:dealio/data/providers/auth_provider.dart';
@@ -44,12 +45,29 @@ class _HomeBottomState extends State<HomeBottom> {
   @override
   void initState() {
     super.initState();
-    final int initialIndex =
+    final auth = context.read<AuthProvider>();
+    final requestedIndex =
         kIsWeb ? _HomeBottomState._pathToIndex(Uri.base.path) : 0;
+    final requiredRoles = _rolesForPage(requestedIndex);
+    final isAllowed = requiredRoles == null ||
+        AppRoles.isAllowed(auth.userRole, requiredRoles);
+    final int initialIndex = isAllowed ? requestedIndex : 0;
     _controller = SidebarXController(selectedIndex: initialIndex, extended: true);
     _controller.addListener(_onIndexChanged);
+    if (!isAllowed && kIsWeb) {
+      // A stale admin URL must not select a privileged page for a customer.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          SystemNavigator.routeInformationUpdated(
+            uri: Uri(path: '/home'),
+            replace: true,
+          );
+        }
+      });
+    }
 
-    Future.microtask(() => context.read<ProductProvider>().fetchProducts());
+    final productProvider = context.read<ProductProvider>();
+    Future.microtask(productProvider.fetchProducts);
 
     _pages = [
       const RepaintBoundary(child: HomeContent()), // 0
@@ -93,6 +111,25 @@ class _HomeBottomState extends State<HomeBottom> {
       case '/settings':       return 11;
       case '/admin/orders':   return 12;
       default:                return 0; // fallback to Home
+    }
+  }
+
+  static List<String>? _rolesForPage(int index) {
+    switch (index) {
+      case 6:
+        return AppRoles.productCreators;
+      case 7:
+        return AppRoles.privilegedRoles;
+      case 8:
+        return AppRoles.productCreators;
+      case 9:
+        return AppRoles.moderators;
+      case 10:
+        return AppRoles.ownerOnly;
+      case 12:
+        return AppRoles.orderManagers;
+      default:
+        return null;
     }
   }
 

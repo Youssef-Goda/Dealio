@@ -1,5 +1,6 @@
 import 'package:dealio/core/constants/colors.dart';
 import 'package:dealio/data/providers/cart_provider.dart';
+import 'package:dealio/data/providers/auth_provider.dart';
 import 'package:dealio/data/providers/checkout_provider.dart';
 import 'package:dealio/data/models/order_model.dart';
 import 'package:dealio/data/services/api_service.dart';
@@ -10,7 +11,9 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:provider/provider.dart';
 
 class CheckoutStatusScreen extends StatefulWidget {
-  const CheckoutStatusScreen({super.key});
+  final String? orderId;
+
+  const CheckoutStatusScreen({super.key, this.orderId});
 
   @override
   State<CheckoutStatusScreen> createState() => _CheckoutStatusScreenState();
@@ -22,6 +25,7 @@ class _CheckoutStatusScreenState extends State<CheckoutStatusScreen>
   _VerifyState _state = _VerifyState.loading;
   String? _errorMessage;
   String? _orderId;
+  bool _verificationStarted = false;
 
   late AnimationController _iconCtrl;
   late Animation<double> _iconScale;
@@ -34,9 +38,6 @@ class _CheckoutStatusScreenState extends State<CheckoutStatusScreen>
       duration: const Duration(milliseconds: 900),
     );
     _iconScale = CurvedAnimation(parent: _iconCtrl, curve: Curves.elasticOut);
-
-    // We cannot call Navigator-dependent code in initState directly — defer one frame.
-    WidgetsBinding.instance.addPostFrameCallback((_) => _resolveAndVerify());
   }
 
   @override
@@ -50,14 +51,16 @@ class _CheckoutStatusScreenState extends State<CheckoutStatusScreen>
   //         via Uri.base.queryParameters.
   // On non-web / modal navigation: passed as a Map argument.
   String? _extractOrderId() {
+    if (widget.orderId?.isNotEmpty == true) return widget.orderId;
+
     // Web: read from the live URL
     if (kIsWeb) {
       final uri = Uri.base;
-      
+
       // 1. Standard query parameters (e.g. ?order_id=123)
       String? id = uri.queryParameters['order_id'] ?? uri.queryParameters['id'];
       if (id != null && id.isNotEmpty) return id;
-      
+
       // 2. Hash fragment query parameters (e.g. #/checkout/status?order_id=123)
       if (uri.hasFragment) {
         final fragSplit = uri.fragment.split('?');
@@ -67,9 +70,11 @@ class _CheckoutStatusScreenState extends State<CheckoutStatusScreen>
           if (id != null && id.isNotEmpty) return id;
         }
       }
-      
+
       // 3. Fallback regex to catch it anywhere in the raw URL string
-      final match = RegExp(r'[?&](?:order_id|id)=([^&]+)').firstMatch(uri.toString());
+      final match = RegExp(
+        r'[?&](?:order_id|id)=([^&]+)',
+      ).firstMatch(uri.toString());
       if (match != null) {
         id = match.group(1);
         if (id != null && id.isNotEmpty) return id;
@@ -80,7 +85,10 @@ class _CheckoutStatusScreenState extends State<CheckoutStatusScreen>
     final args = ModalRoute.of(context)?.settings.arguments;
     if (args is String && args.isNotEmpty) return args;
     if (args is Map) {
-      final id = args['order_id']?.toString() ?? args['orderId']?.toString() ?? args['id']?.toString();
+      final id =
+          args['order_id']?.toString() ??
+          args['orderId']?.toString() ??
+          args['id']?.toString();
       if (id != null && id.isNotEmpty) return id;
     }
     return null;
@@ -91,18 +99,30 @@ class _CheckoutStatusScreenState extends State<CheckoutStatusScreen>
     final orderId = _extractOrderId();
     if (!mounted) return;
 
+    final auth = context.read<AuthProvider>();
+    // A cold web return must not race AuthProvider's persisted-session restore.
+    // build() schedules this verification again when isInitialized changes.
+    if (!auth.isInitialized) {
+      _verificationStarted = false;
+      return;
+    }
+
     if (orderId == null || orderId.isEmpty) {
-      final isSuccessParam = kIsWeb ? (Uri.base.queryParameters['success'] == 'true') : false;
+      final isSuccessParam = kIsWeb
+          ? (Uri.base.queryParameters['success'] == 'true')
+          : false;
       if (isSuccessParam) {
         setState(() {
           _state = _VerifyState.pending;
-          _errorMessage = 'We are still processing your payment.\n'
+          _errorMessage =
+              'We are still processing your payment.\n'
               'Please check your Orders page in a few minutes.';
         });
       } else {
         setState(() {
           _state = _VerifyState.failed;
-          _errorMessage = 'No order ID found in the redirect URL.\n'
+          _errorMessage =
+              'No order ID found in the redirect URL.\n'
               'Please check your Orders page for payment status.';
         });
       }
@@ -112,12 +132,28 @@ class _CheckoutStatusScreenState extends State<CheckoutStatusScreen>
 
     setState(() {
       _orderId = orderId;
-      _state   = _VerifyState.loading;
+      _state = _VerifyState.loading;
     });
+
+    final accessToken = auth.token;
+    if (!auth.isLoggedIn || accessToken == null || accessToken.isEmpty) {
+      if (!mounted) return;
+      setState(() {
+        _state = _VerifyState.unverified;
+        _errorMessage =
+            'Your session is not available yet, so we could not '
+            'verify this payment. Your order has not been changed.';
+      });
+      _iconCtrl.forward();
+      return;
+    }
 
     try {
       final checkout = context.read<CheckoutProvider>();
-      final paymentStatus = await checkout.verifyPaymentStatus(orderId);
+      final paymentStatus = await checkout.verifyPaymentStatus(
+        orderId,
+        accessToken: accessToken,
+      );
 
       if (!mounted) return;
 
@@ -132,16 +168,18 @@ class _CheckoutStatusScreenState extends State<CheckoutStatusScreen>
         // Keeping items in the cart lets the user retry payment without
         // having to re-add everything.
         setState(() {
-          _state        = _VerifyState.failed;
-          _errorMessage = 'Your payment was not completed or was declined.\n'
+          _state = _VerifyState.failed;
+          _errorMessage =
+              'Your payment was not completed or was declined.\n'
               'Please try again or choose a different payment method.';
         });
       } else {
         // ⏳ 'pending' / 'initiated' — webhook hasn't fired yet.
         // Do NOT clear the cart; status is uncertain.
         setState(() {
-          _state        = _VerifyState.pending;
-          _errorMessage = 'Your payment is being verified. This may take a moment.\n'
+          _state = _VerifyState.pending;
+          _errorMessage =
+              'Your payment is being verified. This may take a moment.\n'
               'Tap "Check Again" to refresh, or visit your Orders page.';
         });
       }
@@ -149,7 +187,7 @@ class _CheckoutStatusScreenState extends State<CheckoutStatusScreen>
       if (!mounted) return;
       // On error, also do NOT clear the cart — we cannot confirm payment.
       setState(() {
-        _state        = _VerifyState.failed;
+        _state = _VerifyState.unverified;
         _errorMessage = ApiService.parseErrorMessage(e);
       });
     } finally {
@@ -213,11 +251,20 @@ class _CheckoutStatusScreenState extends State<CheckoutStatusScreen>
 
   @override
   Widget build(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
+    if (auth.isInitialized &&
+        !_verificationStarted &&
+        _state == _VerifyState.loading) {
+      _verificationStarted = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _resolveAndVerify();
+      });
+    }
+
     return Scaffold(
-      backgroundColor:
-          isDark ? AppColors.darkBackground : AppColors.background,
+      backgroundColor: isDark ? AppColors.darkBackground : AppColors.background,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -278,34 +325,38 @@ class _CheckoutStatusScreenState extends State<CheckoutStatusScreen>
   Widget _buildResult(bool isDark) {
     final isSuccess = _state == _VerifyState.success;
     final isPending = _state == _VerifyState.pending;
+    final isUnverified = _state == _VerifyState.unverified;
 
     final Color iconBg = isSuccess
         ? AppColors.successGreen.withValues(alpha: 0.12)
-        : isPending
-            ? AppColors.primary.withValues(alpha: 0.12)
-            : AppColors.errorRed.withValues(alpha: 0.12);
+        : (isPending || isUnverified)
+        ? AppColors.primary.withValues(alpha: 0.12)
+        : AppColors.errorRed.withValues(alpha: 0.12);
 
     final Color iconColor = isSuccess
         ? AppColors.successGreen
-        : isPending
-            ? AppColors.primary
-            : AppColors.errorRed;
+        : (isPending || isUnverified)
+        ? AppColors.primary
+        : AppColors.errorRed;
 
     final IconData iconData = isSuccess
         ? LucideIcons.circleCheck
-        : isPending
-            ? LucideIcons.clock
-            : LucideIcons.circleX;
+        : (isPending || isUnverified)
+        ? LucideIcons.clock
+        : LucideIcons.circleX;
 
     final String headline = isSuccess
         ? 'Payment Confirmed! 🎉'
         : isPending
-            ? 'Verification Pending…'
-            : 'Payment Failed';
+        ? 'Verification Pending…'
+        : isUnverified
+        ? 'Unable to Verify Payment'
+        : 'Payment Failed';
 
     final String subtext = isSuccess
         ? 'Your order has been placed and is being processed.'
-        : _errorMessage ?? 'Something went wrong. Please check your Orders page.';
+        : _errorMessage ??
+              'Something went wrong. Please check your Orders page.';
 
     return Column(
       children: [
@@ -360,8 +411,7 @@ class _CheckoutStatusScreenState extends State<CheckoutStatusScreen>
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(LucideIcons.receipt,
-                    size: 14, color: AppColors.textMuted),
+                Icon(LucideIcons.receipt, size: 14, color: AppColors.textMuted),
                 const SizedBox(width: 8),
                 Text(
                   'Order #${_orderId!.substring(0, 8).toUpperCase()}',
@@ -400,12 +450,13 @@ class _CheckoutStatusScreenState extends State<CheckoutStatusScreen>
               ),
             ),
           ),
-        ] else if (isPending) ...[
+        ] else if (isPending || isUnverified) ...[
           _PrimaryButton(
-            label: 'Check Again',
+            label: isUnverified ? 'Try Again' : 'Check Again',
             icon: LucideIcons.refreshCw,
             onPressed: () {
               _iconCtrl.reset();
+              _verificationStarted = true;
               setState(() => _state = _VerifyState.loading);
               _resolveAndVerify();
             },
@@ -418,16 +469,20 @@ class _CheckoutStatusScreenState extends State<CheckoutStatusScreen>
             style: OutlinedButton.styleFrom(
               minimumSize: const Size(double.infinity, 50),
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14)),
+                borderRadius: BorderRadius.circular(14),
+              ),
             ),
           ),
         ] else ...[
           _PrimaryButton(
-            label: 'Try Again',
+            label: 'Check Payment Again',
             icon: LucideIcons.refreshCw,
-            color: AppColors.errorRed,
-            onPressed: () =>
-                Navigator.of(context).pushReplacementNamed('/checkout'),
+            onPressed: () {
+              _iconCtrl.reset();
+              _verificationStarted = true;
+              setState(() => _state = _VerifyState.loading);
+              _resolveAndVerify();
+            },
           ),
           const SizedBox(height: 12),
           OutlinedButton.icon(
@@ -437,7 +492,8 @@ class _CheckoutStatusScreenState extends State<CheckoutStatusScreen>
             style: OutlinedButton.styleFrom(
               minimumSize: const Size(double.infinity, 50),
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14)),
+                borderRadius: BorderRadius.circular(14),
+              ),
             ),
           ),
         ],
@@ -447,20 +503,18 @@ class _CheckoutStatusScreenState extends State<CheckoutStatusScreen>
 }
 
 // ─── Internal state machine ──────────────────────────────────────────────────
-enum _VerifyState { loading, success, pending, failed }
+enum _VerifyState { loading, success, pending, failed, unverified }
 
 // ─── Reusable primary button ─────────────────────────────────────────────────
 class _PrimaryButton extends StatelessWidget {
   final String label;
   final IconData icon;
   final VoidCallback onPressed;
-  final Color color;
 
   const _PrimaryButton({
     required this.label,
-    required this.icon, 
+    required this.icon,
     required this.onPressed,
-    this.color = AppColors.primary,
   });
 
   @override
@@ -480,9 +534,10 @@ class _PrimaryButton extends StatelessWidget {
           ),
         ),
         style: ElevatedButton.styleFrom(
-          backgroundColor: color,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          backgroundColor: AppColors.primary,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
           elevation: 0,
         ),
       ),

@@ -1,12 +1,10 @@
 import 'dart:convert';
 
-import 'package:dealio/core/constants/base_url.dart';
 import 'package:dealio/data/models/cart_item_model.dart';
 import 'package:dealio/data/models/order_model.dart';
 import 'package:dealio/data/models/shipping_address_model.dart';
 import 'package:dealio/data/services/api_service.dart';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 enum CheckoutStep { address, payment, review }
@@ -38,9 +36,7 @@ class CheckoutProvider with ChangeNotifier {
   String? get error => _error;
 
   bool get canPlaceOrder =>
-      _selectedAddress != null &&
-      !_isPlacingOrder &&
-      !_isInitiatingPayment;
+      _selectedAddress != null && !_isPlacingOrder && !_isInitiatingPayment;
 
   // ─────────────────────── Auth helpers ────────────────────────
   /// Reads the JWT access token stored by AuthProvider after login.
@@ -55,12 +51,6 @@ class CheckoutProvider with ChangeNotifier {
     debugPrint('⚠️ [CheckoutProvider] No JWT token found in SharedPrefs.');
     return null;
   }
-
-  Map<String, String> _authHeaders(String token) => {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'Authorization': 'Bearer $token',
-      };
 
   void _setLoading(bool v) {
     _isLoading = v;
@@ -80,10 +70,7 @@ class CheckoutProvider with ChangeNotifier {
         return;
       }
 
-      final response = await http.get(
-        Uri.parse('${AppConstants.baseUrl}/addresses'),
-        headers: _authHeaders(token),
-      );
+      final response = await ApiService.getRequest('/addresses', token);
 
       debugPrint(
         '📡 [CheckoutProvider] GET /addresses → ${response.statusCode}',
@@ -108,7 +95,8 @@ class CheckoutProvider with ChangeNotifier {
         );
       } else {
         final body = _tryDecode(response.body);
-        _error = body?['message']?.toString() ??
+        _error =
+            body?['message']?.toString() ??
             'Failed to load addresses (${response.statusCode})';
         debugPrint('❌ [CheckoutProvider] fetchAddresses error: $_error');
       }
@@ -147,7 +135,9 @@ class CheckoutProvider with ChangeNotifier {
         _paymentMethod = match;
       }
       final savedAddrId = prefs.getString(_prefAddressIdKey);
-      if (savedAddrId != null && savedAddrId.isNotEmpty && _addresses.isNotEmpty) {
+      if (savedAddrId != null &&
+          savedAddrId.isNotEmpty &&
+          _addresses.isNotEmpty) {
         final matchAddr = _addresses.firstWhere(
           (a) => a.id == savedAddrId,
           orElse: () => _selectedAddress ?? _addresses.first,
@@ -187,10 +177,10 @@ class CheckoutProvider with ChangeNotifier {
         );
       }
 
-      final response = await http.post(
-        Uri.parse('${AppConstants.baseUrl}/addresses'),
-        headers: _authHeaders(token),
-        body: jsonEncode(address.toJson()),
+      final response = await ApiService.postAuthRequest(
+        '/addresses',
+        address.toJson(),
+        token,
       );
 
       debugPrint(
@@ -199,8 +189,9 @@ class CheckoutProvider with ChangeNotifier {
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final body = jsonDecode(response.body) as Map<String, dynamic>;
-        final newAddr =
-            ShippingAddress.fromJson(body['data'] as Map<String, dynamic>);
+        final newAddr = ShippingAddress.fromJson(
+          body['data'] as Map<String, dynamic>,
+        );
         _addresses.insert(0, newAddr);
         if (address.isDefault || _addresses.length == 1) {
           _selectedAddress = newAddr;
@@ -216,7 +207,8 @@ class CheckoutProvider with ChangeNotifier {
         debugPrint('✅ [CheckoutProvider] addAddress → ${newAddr.id}');
       } else {
         final body = _tryDecode(response.body);
-        final msg = body?['message']?.toString() ??
+        final msg =
+            body?['message']?.toString() ??
             'Failed to save address (${response.statusCode})';
         throw Exception(msg);
       }
@@ -240,10 +232,10 @@ class CheckoutProvider with ChangeNotifier {
         throw Exception('You are not logged in.');
       }
 
-      final response = await http.put(
-        Uri.parse('${AppConstants.baseUrl}/addresses/${address.id}'),
-        headers: _authHeaders(token),
-        body: jsonEncode(address.toJson()),
+      final response = await ApiService.putRequest(
+        '/addresses/${address.id}',
+        address.toJson(),
+        token,
       );
 
       debugPrint(
@@ -252,8 +244,9 @@ class CheckoutProvider with ChangeNotifier {
 
       if (response.statusCode == 200) {
         final body = jsonDecode(response.body) as Map<String, dynamic>;
-        final updatedAddr =
-            ShippingAddress.fromJson(body['data'] as Map<String, dynamic>);
+        final updatedAddr = ShippingAddress.fromJson(
+          body['data'] as Map<String, dynamic>,
+        );
         final idx = _addresses.indexWhere((a) => a.id == address.id);
         if (idx != -1) {
           _addresses[idx] = updatedAddr;
@@ -269,7 +262,8 @@ class CheckoutProvider with ChangeNotifier {
         debugPrint('✅ [CheckoutProvider] updateAddress → ${updatedAddr.id}');
       } else {
         final body = _tryDecode(response.body);
-        final msg = body?['message']?.toString() ??
+        final msg =
+            body?['message']?.toString() ??
             'Failed to update address (${response.statusCode})';
         throw Exception(msg);
       }
@@ -293,9 +287,9 @@ class CheckoutProvider with ChangeNotifier {
         throw Exception('You are not logged in.');
       }
 
-      final response = await http.delete(
-        Uri.parse('${AppConstants.baseUrl}/addresses/$addressId'),
-        headers: _authHeaders(token),
+      final response = await ApiService.deleteAuthRequest(
+        '/addresses/$addressId',
+        token,
       );
 
       debugPrint(
@@ -310,7 +304,8 @@ class CheckoutProvider with ChangeNotifier {
         debugPrint('✅ [CheckoutProvider] deleteAddress → $addressId');
       } else {
         final body = _tryDecode(response.body);
-        final msg = body?['message']?.toString() ??
+        final msg =
+            body?['message']?.toString() ??
             'Failed to delete address (${response.statusCode})';
         throw Exception(msg);
       }
@@ -349,17 +344,21 @@ class CheckoutProvider with ChangeNotifier {
         throw Exception('Not logged in. Please log in to place an order.');
       }
 
-      final itemsPayload = cartItems.map((ci) => {
-        'product_id': ci.productId,
-        'product_name': ci.productName,
-        'product_code': ci.productCode,
-        'image_url': ci.imageUrl,
-        'unit_price': ci.unitPrice,
-        'quantity': ci.quantity,
-        'subtotal': ci.subtotal,
-      }).toList();
+      final itemsPayload = cartItems
+          .map(
+            (ci) => {
+              'product_id': ci.productId,
+              'product_name': ci.productName,
+              'product_code': ci.productCode,
+              'image_url': ci.imageUrl,
+              'unit_price': ci.unitPrice,
+              'quantity': ci.quantity,
+              'subtotal': ci.subtotal,
+            },
+          )
+          .toList();
 
-      final body = jsonEncode({
+      final body = {
         'shipping_address_id': _selectedAddress!.id,
         'payment_method': _paymentMethod.value,
         'items': itemsPayload,
@@ -367,17 +366,13 @@ class CheckoutProvider with ChangeNotifier {
         'tax': tax,
         'total': total,
         if (notes != null && notes.isNotEmpty) 'notes': notes,
-      });
+      };
 
       debugPrint(
         '📡 [CheckoutProvider] POST /orders → items=${cartItems.length}, total=$total',
       );
 
-      final response = await http.post(
-        Uri.parse('${AppConstants.baseUrl}/orders'),
-        headers: _authHeaders(token),
-        body: body,
-      );
+      final response = await ApiService.postAuthRequest('/orders', body, token);
 
       debugPrint(
         '📡 [CheckoutProvider] POST /orders → ${response.statusCode}: ${response.body}',
@@ -390,7 +385,8 @@ class CheckoutProvider with ChangeNotifier {
         return Order.fromJson(orderData);
       } else {
         final decoded = _tryDecode(response.body);
-        final msg = decoded?['message']?.toString() ??
+        final msg =
+            decoded?['message']?.toString() ??
             'Failed to place order (${response.statusCode})';
         throw Exception(msg);
       }
@@ -430,20 +426,22 @@ class CheckoutProvider with ChangeNotifier {
     try {
       final token = await _getToken();
       if (token == null) {
-        throw Exception('Not logged in. Please log in to proceed with payment.');
+        throw Exception(
+          'Not logged in. Please log in to proceed with payment.',
+        );
       }
 
-      final response = await http.post(
-        Uri.parse('${AppConstants.baseUrl}/v1/payments/paymob/initiate'),
-        headers: _authHeaders(token),
-        body: jsonEncode({
+      final response = await ApiService.postAuthRequest(
+        '/v1/payments/paymob/initiate',
+        {
           'order_id': orderId,
           'payment_method': paymentMethod.value,
           // amount is intentionally sent for logging only — backend re-reads from DB
           'amount': amount,
           if (walletNumber != null && walletNumber.trim().isNotEmpty)
             'wallet_number': walletNumber.trim(),
-        }),
+        },
+        token,
       );
 
       debugPrint(
@@ -455,11 +453,14 @@ class CheckoutProvider with ChangeNotifier {
       final decoded = _tryDecode(response.body) ?? {};
       final data = (decoded['data'] as Map<String, dynamic>?) ?? decoded;
 
-      final serverMsg = decoded['message']?.toString() ?? data['message']?.toString();
+      final serverMsg =
+          decoded['message']?.toString() ?? data['message']?.toString();
       final isSuccess = decoded['success'] != false && data['success'] != false;
 
       // ── Handle error responses (4xx / 5xx or success == false) ───────────
-      if (response.statusCode < 200 || response.statusCode >= 300 || !isSuccess) {
+      if (response.statusCode < 200 ||
+          response.statusCode >= 300 ||
+          !isSuccess) {
         throw Exception(
           serverMsg?.isNotEmpty == true
               ? serverMsg!
@@ -474,7 +475,7 @@ class CheckoutProvider with ChangeNotifier {
       // ─ Cash / Fawry kiosk ─────────────────────────────────────────────────
       if (paymentType == 'cash') {
         // Backend now returns 'reference_number' and 'expire_date'
-        final ref     = data['reference_number']?.toString() ?? '';
+        final ref = data['reference_number']?.toString() ?? '';
         final expires = data['expire_date']?.toString() ?? '';
         if (ref.isEmpty) {
           throw Exception('Bill reference was not returned by the server.');
@@ -482,10 +483,11 @@ class CheckoutProvider with ChangeNotifier {
         _billReference = ref;
         _billExpiresAt = expires;
         return {
-          'payment_type':     'cash',
+          'payment_type': 'cash',
           'reference_number': ref,
-          'expire_date':      expires,
-          if (publicKey != null && publicKey.isNotEmpty) 'public_key': publicKey,
+          'expire_date': expires,
+          if (publicKey != null && publicKey.isNotEmpty)
+            'public_key': publicKey,
         };
       }
 
@@ -500,8 +502,11 @@ class CheckoutProvider with ChangeNotifier {
       //   _paymentUrl = unifiedCheckoutUrl ?? clientSecret;
       if (clientSecret != null && clientSecret.isNotEmpty) {
         // --- التعديل هنا: تحديد الدومين ديناميكياً ---
-        final isTestKey = publicKey != null && publicKey.toLowerCase().contains('test');
-        final domain = isTestKey ? 'accept.paymobsolutions.com' : 'accept.paymob.com';
+        final isTestKey =
+            publicKey != null && publicKey.toLowerCase().contains('test');
+        final domain = isTestKey
+            ? 'accept.paymobsolutions.com'
+            : 'accept.paymob.com';
 
         final unifiedCheckoutUrl = (publicKey != null && publicKey.isNotEmpty)
             ? 'https://$domain/unifiedcheckout/?publicKey=${Uri.encodeComponent(publicKey)}&clientSecret=${Uri.encodeComponent(clientSecret)}'
@@ -512,11 +517,14 @@ class CheckoutProvider with ChangeNotifier {
           'payment_type': paymentType,
           'client_secret': clientSecret,
           if (unifiedCheckoutUrl != null) 'payment_url': unifiedCheckoutUrl,
-          if (publicKey != null && publicKey.isNotEmpty) 'public_key': publicKey,
+          if (publicKey != null && publicKey.isNotEmpty)
+            'public_key': publicKey,
         };
       }
 
-      final errorDetail = serverMsg?.isNotEmpty == true ? serverMsg! : 'client_secret was not returned by the server.';
+      final errorDetail = serverMsg?.isNotEmpty == true
+          ? serverMsg!
+          : 'client_secret was not returned by the server.';
       throw Exception(errorDetail);
     } catch (e) {
       _error = ApiService.parseErrorMessage(e);
@@ -538,15 +546,21 @@ class CheckoutProvider with ChangeNotifier {
   /// Throws an Exception on network error or unexpected response.
   /// The caller ("I Have Paid" button) uses this to decide whether
   /// to proceed to the success screen — no client-side override.
-  Future<String> verifyPaymentStatus(String orderId) async {
-    final token = await _getToken();
+  Future<String> verifyPaymentStatus(
+    String orderId, {
+    String? accessToken,
+  }) async {
+    final suppliedToken = accessToken?.trim();
+    final token = suppliedToken != null && suppliedToken.isNotEmpty
+        ? suppliedToken
+        : await _getToken();
     if (token == null) {
       throw Exception('Not logged in. Please log in to verify payment.');
     }
 
-    final response = await http.get(
-      Uri.parse('${AppConstants.baseUrl}/orders/$orderId/payment-status'),
-      headers: _authHeaders(token),
+    final response = await ApiService.getRequest(
+      '/orders/$orderId/payment-status',
+      token,
     );
 
     debugPrint(
@@ -562,8 +576,9 @@ class CheckoutProvider with ChangeNotifier {
       return payStatus;
     }
 
-    final msg = decoded['message']?.toString()
-        ?? 'Could not verify payment status (HTTP ${response.statusCode}).';
+    final msg =
+        decoded['message']?.toString() ??
+        'Could not verify payment status (HTTP ${response.statusCode}).';
     throw Exception(msg);
   }
 

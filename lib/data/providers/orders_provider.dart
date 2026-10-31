@@ -1,10 +1,50 @@
 import 'dart:convert';
 
-import 'package:dealio/core/constants/base_url.dart';
 import 'package:dealio/data/models/order_model.dart';
+import 'package:dealio/data/services/api_service.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// OrderFetchFailure — classifies the reason a fetchOrderById call failed.
+//
+// Callers use this to show the right error message and decide whether to
+// offer a retry, redirect to login, or surface a contact-support path.
+// ─────────────────────────────────────────────────────────────────────────────
+enum OrderFetchFailure {
+  /// No token in SharedPreferences — user is not signed in.
+  unauthenticated,
+
+  /// Token is valid but the user does not own this order (403).
+  unauthorized,
+
+  /// The order ID does not exist in the database (404).
+  notFound,
+
+  /// Backend returned a 5xx or an unexpected non-200 status.
+  server,
+
+  /// Response body could not be decoded or mapped to [Order].
+  parse,
+
+  /// Socket/DNS/timeout — no HTTP response received at all.
+  network,
+}
+
+/// Thrown by [OrdersProvider.fetchOrderById] on every non-success path.
+///
+/// Carries a human-readable [message] safe to display in the UI, and a
+/// machine-readable [failure] tag for conditional UI logic (retry button,
+/// login redirect, etc.).
+class OrderFetchException implements Exception {
+  final OrderFetchFailure failure;
+  final String message;
+  const OrderFetchException(this.failure, this.message);
+
+  @override
+  String toString() => 'OrderFetchException(${failure.name}): $message';
+}
 
 class OrdersProvider with ChangeNotifier {
   // ─────────────────────────── State ───────────────────────────
@@ -60,12 +100,6 @@ class OrdersProvider with ChangeNotifier {
     return null;
   }
 
-  Map<String, String> _authHeaders(String token) => {
-    'Content-Type': 'application/json',
-    'Accept': 'application/json',
-    'Authorization': 'Bearer $token',
-  };
-
   // ─────────────────────────── fetchOrders ─────────────────────
   /// GET /api/orders — authenticated via JWT in SharedPreferences.
   /// No direct Supabase calls.
@@ -80,10 +114,7 @@ class OrdersProvider with ChangeNotifier {
         return;
       }
 
-      final response = await http.get(
-        Uri.parse('${AppConstants.baseUrl}/orders'),
-        headers: _authHeaders(token),
-      );
+      final response = await ApiService.getRequest('/orders', token);
 
       debugPrint('📡 [OrdersProvider] GET /orders → ${response.statusCode}');
 
@@ -147,21 +178,16 @@ class OrdersProvider with ChangeNotifier {
           governorate != 'All Governorates') {
         queryParams['governorate'] = governorate.trim();
       }
-      if (city != null &&
-          city.trim().isNotEmpty &&
-          city != 'All Cities') {
+      if (city != null && city.trim().isNotEmpty && city != 'All Cities') {
         queryParams['city'] = city.trim();
       }
 
-      final uri = Uri.parse('${AppConstants.baseUrl}/orders/all')
-          .replace(queryParameters: queryParams);
+      final query = Uri(queryParameters: queryParams).query;
+      final response = await ApiService.getRequest('/orders/all?$query', token);
 
-      final response = await http.get(
-        uri,
-        headers: _authHeaders(token),
+      debugPrint(
+        '📡 [OrdersProvider] GET /orders/all → ${response.statusCode}',
       );
-
-      debugPrint('📡 [OrdersProvider] GET /orders/all → ${response.statusCode}');
 
       if (response.statusCode == 200) {
         final body = jsonDecode(response.body) as Map<String, dynamic>;
@@ -206,9 +232,10 @@ class OrdersProvider with ChangeNotifier {
         throw Exception('You are not logged in.');
       }
 
-      final response = await http.post(
-        Uri.parse('${AppConstants.baseUrl}/orders/$orderId/cancel'),
-        headers: _authHeaders(token),
+      final response = await ApiService.postAuthRequest(
+        '/orders/$orderId/cancel',
+        const {},
+        token,
       );
 
       debugPrint(
@@ -252,10 +279,10 @@ class OrdersProvider with ChangeNotifier {
     final token = await _getToken();
     if (token == null) throw Exception('You are not logged in.');
 
-    final response = await http.patch(
-      Uri.parse('${AppConstants.baseUrl}/orders/$orderId/status'),
-      headers: _authHeaders(token),
-      body: jsonEncode({'status': newStatus.name}), // e.g. "shipped"
+    final response = await ApiService.patchAuthRequest(
+      '/orders/$orderId/status',
+      {'status': newStatus.name}, // e.g. "shipped"
+      token,
     );
 
     debugPrint(
@@ -284,55 +311,112 @@ class OrdersProvider with ChangeNotifier {
   // ───────────────────────── fetchOrderById ────────────────────
   /// GET /api/orders/:id — Fetch a single order by its internal UUID.
   ///
-  /// Returns the [Order] on success, or null if not found / unauthorized.
-  /// Also inserts / replaces the order in the local [_orders] list so
-  /// [OrderDetailScreen] can read it via context.select without a separate
-  /// provider refresh.
-  Future<Order?> fetchOrderById(String orderId) async {
+  /// Returns the [Order] on success.
+  ///
+  /// Throws an [OrderFetchException] on every failure so callers can
+  /// distinguish authentication, authorization, not-found, server, parsing,
+  /// and network errors and surface a useful message to the user.
+  ///
+  /// Also upserts the order into the local [_orders] list so
+  /// [OrderDetailScreen] can read it via context.select immediately.
+  Future<Order> fetchOrderById(String orderId) async {
+    // ── 1. Auth token ────────────────────────────────────────────────────────
     final token = await _getToken();
     if (token == null) {
       debugPrint('❌ [OrdersProvider] fetchOrderById → no token');
-      return null;
+      throw const OrderFetchException(
+        OrderFetchFailure.unauthenticated,
+        'Not signed in. Please log in and try again.',
+      );
     }
 
+    // ── 2. HTTP request ──────────────────────────────────────────────────────
+    late http.Response response;
     try {
-      final response = await http.get(
-        Uri.parse('${AppConstants.baseUrl}/orders/$orderId'),
-        headers: _authHeaders(token),
+      response = await ApiService.getRequest('/orders/$orderId', token);
+    } catch (e) {
+      // Socket / DNS / timeout errors
+      debugPrint('❌ [OrdersProvider] fetchOrderById network error: $e');
+      throw OrderFetchException(
+        OrderFetchFailure.network,
+        'Network error — please check your connection and try again.',
       );
+    }
+
+    debugPrint(
+      '📡 [OrdersProvider] GET /orders/$orderId → ${response.statusCode}',
+    );
+
+    // ── 3. HTTP error responses ──────────────────────────────────────────────
+    if (response.statusCode != 200) {
+      final body = _tryDecode(response.body);
+      final serverMsg = body?['message']?.toString();
+
+      final failure = switch (response.statusCode) {
+        401 => OrderFetchFailure.unauthenticated,
+        403 => OrderFetchFailure.unauthorized,
+        404 => OrderFetchFailure.notFound,
+        >= 500 => OrderFetchFailure.server,
+        _ => OrderFetchFailure.server,
+      };
+
+      final displayMsg = switch (failure) {
+        OrderFetchFailure.unauthenticated =>
+          'Your session has expired. Please log in again.',
+        OrderFetchFailure.unauthorized =>
+          'You do not have permission to view this order.',
+        OrderFetchFailure.notFound =>
+          'Order not found (it may still be processing).',
+        _ =>
+          serverMsg ??
+              'Server error (${response.statusCode}). '
+                  'Please try again in a moment.',
+      };
 
       debugPrint(
-        '📡 [OrdersProvider] GET /orders/$orderId → ${response.statusCode}',
+        '❌ [OrdersProvider] fetchOrderById HTTP ${response.statusCode}: '
+        '${serverMsg ?? "(no message)"}',
       );
+      throw OrderFetchException(failure, displayMsg);
+    }
 
-      if (response.statusCode == 200) {
-        final body = jsonDecode(response.body) as Map<String, dynamic>;
-        final raw = body['data'] as Map<String, dynamic>?;
-        if (raw == null) return null;
-        final order = Order.fromJson(raw);
-
-        // Upsert into local list so OrderDetailScreen.context.select picks it up
-        final idx = _orders.indexWhere((o) => o.id == orderId);
-        if (idx != -1) {
-          _orders[idx] = order;
-        } else {
-          _orders.insert(0, order);
-        }
-        notifyListeners();
-
-        debugPrint('✅ [OrdersProvider] fetchOrderById → ${order.id}');
-        return order;
-      } else {
-        final body = _tryDecode(response.body);
-        final msg =
-            body?['message']?.toString() ??
-            'Failed to load order (${response.statusCode})';
-        debugPrint('❌ [OrdersProvider] fetchOrderById error: $msg');
-        return null;
+    // ── 4. Parse response body ───────────────────────────────────────────────
+    try {
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      final raw = body['data'] as Map<String, dynamic>?;
+      if (raw == null) {
+        throw OrderFetchException(
+          OrderFetchFailure.parse,
+          'Unexpected response format from server (missing "data" field).',
+        );
       }
+
+      final order = Order.fromJson(raw);
+
+      // Upsert into local list so OrderDetailScreen.context.select picks it up
+      final idx = _orders.indexWhere((o) => o.id == orderId);
+      if (idx != -1) {
+        _orders[idx] = order;
+      } else {
+        _orders.insert(0, order);
+      }
+      notifyListeners();
+
+      debugPrint(
+        '✅ [OrdersProvider] fetchOrderById → ${order.id} '
+        '(${order.items.length} items)',
+      );
+      return order;
+    } on OrderFetchException {
+      rethrow;
     } catch (e) {
-      debugPrint('❌ [OrdersProvider] fetchOrderById exception: $e');
-      return null;
+      // JSON decode error or fromJson type cast failure
+      debugPrint('❌ [OrdersProvider] fetchOrderById parse error: $e');
+      throw OrderFetchException(
+        OrderFetchFailure.parse,
+        'Could not read order data. '
+        'Details: ${e.toString().split('\n').first}',
+      );
     }
   }
 
